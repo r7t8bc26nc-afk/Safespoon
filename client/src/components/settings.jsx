@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { getAuth, signOut } from "firebase/auth";
-import { doc, updateDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
+import { doc, updateDoc, setDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
 import { db } from '../firebase';
 
 const DIETARY_OPTIONS = [
@@ -13,7 +13,7 @@ const Settings = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   
-  // --- NEW EDIT STATE ---
+  // --- EDIT STATE ---
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
 
@@ -42,25 +42,28 @@ const Settings = () => {
     const isActive = profile?.restrictions?.includes(restriction);
 
     try {
+      // Use setDoc with merge to ensure document exists
       if (isActive) {
         await updateDoc(userRef, { restrictions: arrayRemove(restriction) });
       } else {
-        await updateDoc(userRef, { restrictions: arrayUnion(restriction) });
+        await setDoc(userRef, { restrictions: arrayUnion(restriction) }, { merge: true });
       }
     } catch (err) {
       console.error("Error updating settings:", err);
     }
   };
 
-  // 3. Save Profile Logic
+  // 3. Save Profile Logic (Robust Fix)
   const handleSaveProfile = async () => {
     if (!user || !editName.trim()) return;
     const userRef = doc(db, "users", user.uid);
     try {
-        await updateDoc(userRef, { username: editName });
+        // Fix: Use setDoc with merge to create profile if it doesn't exist
+        await setDoc(userRef, { username: editName }, { merge: true });
         setIsEditing(false);
     } catch (err) {
         console.error("Error saving profile:", err);
+        alert("Could not save profile. Check console for details.");
     }
   };
 
@@ -79,10 +82,10 @@ const Settings = () => {
 
       {/* --- HEADER --- */}
       <div className="pt-6 pb-8 space-y-2">
-        <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter leading-none">
+        <h1 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tighter leading-none">
             Settings.
         </h1>
-        <p className="text-lg text-gray-500 font-medium">
+        <p className="text-sm md:text-lg text-gray-500 font-medium">
             Manage your profile and safety preferences.
         </p>
       </div>

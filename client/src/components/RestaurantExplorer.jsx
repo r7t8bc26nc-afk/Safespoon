@@ -66,7 +66,6 @@ export const RestaurantExplorer = ({ onOpenMenu, userProfile }) => {
   const checkSafety = (item) => {
       const userRestrictions = (userProfile?.restrictions || []).map(r => r.toLowerCase());
       const conflicts = [];
-      // Safety Check: Ensure tags exist before mapping
       (item.tags || []).forEach(tag => {
           if (userRestrictions.includes(tag.toLowerCase())) conflicts.push(tag);
           if (tag.toLowerCase() === 'wheat' && userRestrictions.includes('gluten')) {
@@ -92,67 +91,149 @@ export const RestaurantExplorer = ({ onOpenMenu, userProfile }) => {
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-10 pb-24 relative">
+    <div className="w-full max-w-7xl mx-auto pb-24 relative">
       <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-100 rounded-full blur-3xl -z-10 opacity-40 mix-blend-multiply animate-pulse"></div>
 
       {/* --- HEADER --- */}
-      <div className="pt-0 space-y-8 mb-8">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
+      {/* pt-2 keeps it high up, but we use margins below for breathing room */}
+      <div className="pt-2">
+         
+         {/* 1. Heading & Toggle Row */}
+         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
             <div>
-                <h1 className="text-4xl md:text-6xl font-black text-gray-900 tracking-tighter leading-none mb-2">Discover.</h1>
-                <p className="text-lg text-gray-500 font-medium">Find safe eats or verify ingredients.</p>
+                <h1 className="text-2xl font-black text-gray-900 tracking-tight leading-none mb-1">Discover</h1>
+                <p className="text-gray-500 font-medium text-sm md:text-base">Find safe eats or verify ingredients.</p>
             </div>
-            <div className="bg-white p-1.5 rounded-full shadow-sm border border-gray-100 flex w-full md:w-auto">
-                <button onClick={() => setMode('restaurants')} className={`flex-1 md:flex-none px-6 py-2.5 rounded-full text-sm font-extrabold transition-all duration-300 ${mode === 'restaurants' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-400 hover:text-gray-900'}`}>Restaurants</button>
-                <button onClick={() => setMode('ingredients')} className={`flex-1 md:flex-none px-6 py-2.5 rounded-full text-sm font-extrabold transition-all duration-300 ${mode === 'ingredients' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-400 hover:text-gray-900'}`}>Groceries</button>
+            
+            {/* Toggle Switch */}
+            <div className="bg-gray-100 p-1 rounded-xl inline-flex w-full md:w-auto">
+                <button 
+                    onClick={() => setMode('restaurants')} 
+                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                        mode === 'restaurants' 
+                            ? 'bg-gray-900 text-white shadow-md' 
+                            : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                >
+                    Restaurants
+                </button>
+                <button 
+                    onClick={() => setMode('ingredients')} 
+                    className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all duration-200 ${
+                        mode === 'ingredients' 
+                            ? 'bg-gray-900 text-white shadow-md' 
+                            : 'text-gray-500 hover:text-gray-900'
+                    }`}
+                >
+                    Groceries
+                </button>
             </div>
-        </div>
+         </div>
 
-        <div className="relative w-full z-20">
-            <div className="absolute left-6 top-1/2 transform -translate-y-1/2 text-gray-400"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg></div>
-            <input type="text" placeholder={mode === 'restaurants' ? "Search for 'Burgers', 'Sushi'..." : "Search 'Oat Milk', 'Flour'..."} value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-white rounded-[2rem] pl-16 pr-6 py-5 font-bold text-gray-900 placeholder-gray-400 shadow-[0_15px_30px_-5px_rgb(0,0,0,0.06)] ring-1 ring-gray-100 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:shadow-xl transition-all text-lg" />
-        </div>
+         {/* 2. SEARCH BAR (Restored spacing mb-6) */}
+         <div className="relative w-full z-20 mb-6">
+            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+            </div>
+            <input 
+                type="text" 
+                placeholder={mode === 'restaurants' ? "Search for 'Burgers', 'Sushi'..." : "Search 'Oat Milk', 'Flour'..."} 
+                value={searchTerm} 
+                onChange={(e) => setSearchTerm(e.target.value)} 
+                className="w-full bg-gray-100 rounded-xl pl-12 pr-4 py-4 font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all" 
+            />
+         </div>
 
-        {mode === 'restaurants' && (
-            <div className="flex flex-wrap gap-2 items-center">
+         {/* 3. CATEGORIES (Horizontal Scroll) */}
+         {mode === 'restaurants' && (
+            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
                 {CATEGORIES.map((cat) => (
-                    <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`px-5 py-2.5 rounded-full text-sm font-bold transition-all duration-300 border flex items-center gap-2 ${activeCategory === cat.id ? 'bg-gray-900 text-white border-gray-900 shadow-lg scale-105' : 'bg-white text-gray-600 border-gray-100 hover:bg-gray-50 hover:border-gray-300'}`}>
-                        <span>{cat.icon}</span><span>{cat.label}</span>
+                    <button 
+                        key={cat.id} 
+                        onClick={() => setActiveCategory(cat.id)} 
+                        className={`
+                            whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all border 
+                            ${activeCategory === cat.id 
+                                ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
+                                : 'bg-white text-gray-600 border-gray-100 hover:border-gray-300'
+                            }
+                        `}
+                    >
+                        <span>{cat.icon}</span>
+                        <span>{cat.label}</span>
                     </button>
                 ))}
             </div>
-        )}
+         )}
       </div>
 
       {/* --- CONTENT --- */}
       {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {[1,2,3].map(i => <div key={i} className="h-72 bg-gray-100 rounded-[2rem] animate-pulse"></div>)}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6">
+            {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-100 rounded-[2rem] animate-pulse"></div>)}
         </div>
       ) : (
         <>
-        {/* MODE 1: RESTAURANTS */}
+        {/* MODE 1: RESTAURANTS (Engaging Card Style) */}
         {mode === 'restaurants' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
                 {filteredRestaurants.map((restaurant) => {
                     const isFavorite = userProfile?.favorites?.includes(restaurant.id);
                     return (
-                        <div key={restaurant.id} onClick={() => onOpenMenu(restaurant)} className="group bg-white rounded-[2rem] p-6 shadow-[0_2px_12px_rgb(0,0,0,0.03)] hover:shadow-[0_20px_40px_-5px_rgb(0,0,0,0.1)] hover:-translate-y-2 transition-all duration-500 cursor-pointer border border-gray-100 relative overflow-hidden">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className="h-16 w-16 rounded-full bg-white shadow-md flex items-center justify-center overflow-hidden group-hover:scale-105 transition-transform duration-500">
-                                    <img src={getLogoUrl(restaurant.name)} alt="logo" className="w-full h-full object-cover" onError={(e) => e.target.style.display='none'} />
+                        <div key={restaurant.id} onClick={() => onOpenMenu(restaurant)} className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col">
+                            
+                            {/* COVER IMAGE */}
+                            <div className="h-40 w-full bg-gray-200 relative overflow-hidden">
+                                <img 
+                                    src={`https://source.unsplash.com/400x300/?food,${restaurant.category || 'meal'}`} 
+                                    alt={restaurant.name}
+                                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                                    onError={(e) => e.target.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'}
+                                />
+                                
+                                {/* Overlay Badges */}
+                                <div className="absolute top-3 left-3 flex gap-2">
+                                    {restaurant.verified && (
+                                        <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-2 py-1 rounded-md shadow-sm">
+                                            Verified
+                                        </span>
+                                    )}
+                                    <span className="bg-white/90 backdrop-blur-md text-gray-900 text-[10px] font-bold px-2 py-1 rounded-md shadow-sm flex items-center gap-1">
+                                        ★ {restaurant.rating || "New"}
+                                    </span>
                                 </div>
-                                <span className="bg-gray-50 text-gray-500 text-xs font-bold px-3 py-1.5 rounded-full tracking-wide">{restaurant.distance} mi</span>
-                            </div>
-                            <div className="mb-6">
-                                <h3 className="text-2xl font-extrabold text-gray-900 mb-1 leading-tight">{restaurant.name}</h3>
-                                <p className="text-gray-400 font-bold text-sm">{restaurant.category || "Restaurant"}</p>
-                            </div>
-                            <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-50">
-                                <span className="flex items-center gap-1.5 bg-violet-50 text-violet-700 px-3 py-1.5 rounded-xl text-xs font-bold uppercase tracking-wider">★ {restaurant.rating || "New"}</span>
-                                <button onClick={(e) => handleToggleFavorite(e, restaurant.id)} className={`h-10 w-10 rounded-full flex items-center justify-center transition-all duration-300 ${isFavorite ? 'bg-rose-50 text-rose-500 shadow-sm' : 'bg-gray-50 text-gray-300 hover:text-rose-400'}`}>
-                                    <svg className="w-5 h-5" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
+
+                                {/* Like Button */}
+                                <button 
+                                    onClick={(e) => handleToggleFavorite(e, restaurant.id)}
+                                    className={`absolute top-3 right-3 h-8 w-8 rounded-full flex items-center justify-center shadow-md transition-all ${isFavorite ? 'bg-rose-500 text-white' : 'bg-white text-gray-400 hover:scale-110'}`}
+                                >
+                                    <svg className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
                                 </button>
+                            </div>
+
+                            {/* CARD CONTENT */}
+                            <div className="p-5 pt-12 relative flex-1 flex flex-col">
+                                {/* Overlapping Logo Bubble */}
+                                <div className="absolute -top-8 left-5 h-16 w-16 rounded-full bg-white p-1 shadow-md border border-gray-50">
+                                    <img 
+                                        src={getLogoUrl(restaurant.name)} 
+                                        alt="logo" 
+                                        className="w-full h-full object-contain rounded-full"
+                                        onError={(e) => e.target.style.display='none'} 
+                                    />
+                                </div>
+
+                                <div className="mb-2">
+                                    <h3 className="text-xl font-extrabold text-gray-900 leading-tight group-hover:text-violet-700 transition-colors">
+                                        {restaurant.name}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <span className="text-xs font-bold text-gray-500 bg-gray-50 px-2 py-1 rounded-md">{restaurant.category || "Restaurant"}</span>
+                                        <span className="text-xs font-bold text-gray-400">•</span>
+                                        <span className="text-xs font-bold text-gray-500">{restaurant.distance} mi</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     );
@@ -162,36 +243,35 @@ export const RestaurantExplorer = ({ onOpenMenu, userProfile }) => {
 
         {/* MODE 2: GROCERIES */}
         {mode === 'ingredients' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
                 {filteredGroceries.length === 0 && <div className="col-span-full py-20 text-center"><div className="inline-block p-4 rounded-full bg-gray-50 mb-3 text-2xl">🥕</div><p className="text-gray-900 font-bold">No groceries found.</p></div>}
                 
                 {filteredGroceries.map(item => {
                     const { isSafe, conflicts } = checkSafety(item);
                     return (
-                        <div key={item.id} onClick={() => setSelectedIngredient(item)} className="group relative bg-white rounded-[2rem] border border-gray-100 shadow-[0_2px_15px_rgb(0,0,0,0.02)] hover:shadow-[0_20px_40px_-5px_rgb(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col">
+                        <div key={item.id} onClick={() => setSelectedIngredient(item)} className="group relative bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col">
                             {/* Full Bleed Image */}
-                            <div className="h-48 w-full bg-gray-50 relative overflow-hidden">
+                            <div className="h-40 w-full bg-gray-50 relative overflow-hidden">
                                 <img 
                                     src={item.image} 
                                     alt={item.name} 
                                     onError={handleImageError} 
                                     className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
                                 />
-                                <div className={`absolute top-4 right-4 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border border-white/20 ${isSafe ? 'bg-emerald-500/90 text-white' : 'bg-rose-500/90 text-white'}`}>
+                                <div className={`absolute top-3 right-3 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border border-white/20 ${isSafe ? 'bg-emerald-500/90 text-white' : 'bg-rose-500/90 text-white'}`}>
                                     {isSafe ? 'Safe' : 'Avoid'}
                                 </div>
                             </div>
                             
                             <div className="p-5 flex-1 flex flex-col">
-                                <div className="mb-1">
-                                    <p className="text-gray-400 text-xs font-bold uppercase tracking-wide mb-1">{item.brand}</p>
-                                    <h3 className="font-extrabold text-xl text-gray-900 leading-tight line-clamp-2">{item.name}</h3>
+                                <div className="mb-2">
+                                    <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide mb-1">{item.brand}</p>
+                                    <h3 className="font-extrabold text-lg text-gray-900 leading-tight line-clamp-2">{item.name}</h3>
                                 </div>
                                 
-                                <div className="mt-4 pt-4 border-t border-gray-50 flex items-center justify-between text-xs font-bold text-gray-500">
-                                    {/* SAFELY CHECK FOR NUTRITION DATA */}
+                                <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between text-[10px] font-bold text-gray-500">
                                     {item.nutrition ? (
-                                        <div className="flex gap-3">
+                                        <div className="flex gap-2">
                                             <span>🔥 {item.nutrition.calories || 'N/A'} Cal</span>
                                             <span>💪 {item.nutrition.protein || '0g'} Pro</span>
                                         </div>
@@ -212,24 +292,23 @@ export const RestaurantExplorer = ({ onOpenMenu, userProfile }) => {
       {/* --- NUTRITION MODAL --- */}
       {selectedIngredient && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-fade-in">
-              <div className="bg-white rounded-[2.5rem] p-6 md:p-8 w-full max-w-md shadow-2xl relative animate-slide-up">
-                  <button onClick={() => setSelectedIngredient(null)} className="absolute top-4 right-4 h-10 w-10 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">✕</button>
+              <div className="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative animate-slide-up">
+                  <button onClick={() => setSelectedIngredient(null)} className="absolute top-4 right-4 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">✕</button>
 
                   <div className="text-center mb-6">
-                      <div className="h-24 w-24 mx-auto rounded-full bg-gray-50 mb-4 overflow-hidden shadow-sm border-4 border-white">
+                      <div className="h-20 w-20 mx-auto rounded-full bg-gray-50 mb-4 overflow-hidden shadow-sm border-4 border-white">
                           <img src={selectedIngredient.image} onError={handleImageError} alt={selectedIngredient.name} className="w-full h-full object-cover" />
                       </div>
-                      <h2 className="text-2xl font-black text-gray-900 leading-tight mb-1">{selectedIngredient.name}</h2>
-                      <p className="text-gray-500 font-bold uppercase text-sm tracking-wide">{selectedIngredient.brand}</p>
+                      <h2 className="text-xl font-black text-gray-900 leading-tight mb-1">{selectedIngredient.name}</h2>
+                      <p className="text-gray-500 font-bold uppercase text-xs tracking-wide">{selectedIngredient.brand}</p>
                   </div>
 
-                  <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 mb-6">
-                      <h3 className="font-black text-gray-900 uppercase tracking-widest text-xs mb-4 border-b border-gray-200 pb-2">Nutrition Facts</h3>
+                  <div className="bg-gray-50 rounded-xl p-5 border border-gray-100 mb-6">
+                      <h3 className="font-black text-gray-900 uppercase tracking-widest text-[10px] mb-3 border-b border-gray-200 pb-2">Nutrition Facts</h3>
                       
-                      {/* SAFE ACCESS TO NUTRITION DATA */}
                       {selectedIngredient.nutrition ? (
-                          <div className="space-y-3 text-sm">
-                              <div className="flex justify-between items-center"><span className="font-bold text-gray-600">Calories</span><span className="font-black text-xl text-gray-900">{selectedIngredient.nutrition.calories || 'N/A'}</span></div>
+                          <div className="space-y-2 text-sm">
+                              <div className="flex justify-between items-center"><span className="font-bold text-gray-600">Calories</span><span className="font-black text-lg text-gray-900">{selectedIngredient.nutrition.calories || 'N/A'}</span></div>
                               <div className="w-full h-px bg-gray-200"></div>
                               <div className="flex justify-between items-center"><span className="font-medium text-gray-500">Protein</span><span className="font-bold text-gray-900">{selectedIngredient.nutrition.protein || 'N/A'}</span></div>
                               <div className="flex justify-between items-center"><span className="font-medium text-gray-500">Total Fat</span><span className="font-bold text-gray-900">{selectedIngredient.nutrition.fat || 'N/A'}</span></div>

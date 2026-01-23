@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { db } from '../firebase';
-import { getAuth } from "firebase/auth"; // <--- Import Auth
+import { getAuth } from "firebase/auth"; 
 import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 
 // --- MOCK RECIPE DATA ---
@@ -56,11 +56,9 @@ export const Recipes = ({ userProfile }) => {
   const [selectedRecipe, setSelectedRecipe] = useState(null);
   const [activeCategory, setActiveCategory] = useState('All');
   
-  // --- FIXED FAVORITE LOGIC ---
+  // --- FAVORITE LOGIC ---
   const handleToggleFavorite = async (e, recipeId) => {
     e.stopPropagation(); 
-    
-    // 1. Get User ID directly from Auth (More reliable)
     const auth = getAuth();
     const user = auth.currentUser;
     
@@ -70,18 +68,13 @@ export const Recipes = ({ userProfile }) => {
     }
 
     const userRef = doc(db, "users", user.uid);
-    // 2. Read 'favorites' from the profile prop to decide Add vs Remove
     const isFavorite = userProfile?.favorites?.includes(recipeId);
 
     try {
         if (isFavorite) {
-            await updateDoc(userRef, {
-                favorites: arrayRemove(recipeId)
-            });
+            await updateDoc(userRef, { favorites: arrayRemove(recipeId) });
         } else {
-            await updateDoc(userRef, {
-                favorites: arrayUnion(recipeId)
-            });
+            await updateDoc(userRef, { favorites: arrayUnion(recipeId) });
         }
     } catch (err) {
         console.error("Error updating favorites:", err);
@@ -196,24 +189,46 @@ export const Recipes = ({ userProfile }) => {
   // --- LIST VIEW ---
   return (
     <div className="max-w-6xl mx-auto space-y-6 pb-24">
-      <div>
-        <h1 className="text-3xl font-extrabold text-gray-900">Recipes</h1>
-        <p className="text-gray-500 mt-1">Safe meals you can make at home.</p>
+      {/* 1. Header (Downsized to text-2xl/3xl) */}
+      <div className="pt-2">
+        <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">Recipes</h1>
+        <p className="text-gray-500 mt-1 font-medium text-sm md:text-base">Tasty meals for you to try</p>
       </div>
 
-      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-         {categories.map(cat => (
-             <button key={cat} onClick={() => setActiveCategory(cat)} className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all border ${activeCategory === cat ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'}`}>{cat}</button>
-         ))}
-      </div>
-
+      {/* 2. Search Bar (Moved ABOVE Categories) */}
       <div className="relative w-full">
          <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
          </div>
-         <input type="text" placeholder="Search by dish or ingredient..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full bg-gray-100 rounded-xl pl-12 pr-4 py-4 font-bold text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all" />
+         <input 
+            type="text" 
+            placeholder="Search by dish or ingredient..." 
+            value={searchTerm} 
+            onChange={(e) => setSearchTerm(e.target.value)} 
+            className="w-full bg-gray-100 rounded-xl pl-12 pr-4 py-4 font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all" 
+         />
       </div>
 
+      {/* 3. Categories (Now below Search) */}
+      <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
+         {categories.map(cat => (
+             <button 
+                key={cat} 
+                onClick={() => setActiveCategory(cat)} 
+                className={`
+                    whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all border 
+                    ${activeCategory === cat 
+                        ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
+                        : 'bg-white text-gray-500 border-gray-200 hover:border-gray-400'
+                    }
+                `}
+            >
+                {cat}
+            </button>
+         ))}
+      </div>
+
+      {/* 4. Recipe Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRecipes.length === 0 && (
               <div className="col-span-full py-20 text-center bg-gray-50 rounded-2xl border-dashed border border-gray-200">

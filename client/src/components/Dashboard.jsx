@@ -63,9 +63,10 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
   const [dashboardSearch, setDashboardSearch] = useState('');
   const [currentAdIndex, setCurrentAdIndex] = useState(0);
 
-  // --- NEW LOCATION STATE ---
-  const [locationName, setLocationName] = useState('Current Location');
-  const [locationLoading, setLocationLoading] = useState(false);
+  // --- LOCATION STATE ---
+  // Default to "Locating..." to show activity immediately
+  const [locationName, setLocationName] = useState('Locating...');
+  const [locationLoading, setLocationLoading] = useState(true);
   const [locationError, setLocationError] = useState(null);
 
   const getGreeting = () => {
@@ -81,13 +82,15 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
     return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&size=100&format=png`;
   };
 
-  // --- NEW FUNCTION: HANDLE LOCATION CLICK ---
+  // --- LOCATION LOGIC ---
   const handleLocationClick = () => {
     setLocationLoading(true);
     setLocationError(null);
+    setLocationName("Locating...");
 
     if (!navigator.geolocation) {
-      setLocationError("Geolocation is not supported by your browser");
+      setLocationError("Geolocation not supported");
+      setLocationName("Set Location");
       setLocationLoading(false);
       return;
     }
@@ -97,13 +100,11 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
         const { latitude, longitude } = position.coords;
         
         try {
-          // Using BigDataCloud's free client-side API (No key required, CORS friendly)
           const response = await fetch(
             `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`
           );
           const data = await response.json();
           
-          // Construct a readable location string (e.g., "Rock Hill, South Carolina" or "New York, NY")
           const city = data.city || data.locality || data.principalSubdivision;
           const state = data.principalSubdivisionCode || data.countryName;
           
@@ -114,19 +115,24 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
           }
         } catch (error) {
           console.error("Error fetching address:", error);
-          setLocationName("Unknown Location");
-          setLocationError("Could not fetch address details");
+          setLocationName("Set Location");
         } finally {
           setLocationLoading(false);
         }
       },
       (error) => {
         console.error("Geolocation error:", error);
-        setLocationError("Permission denied or unavailable");
+        // Fail silently to "Set Location" if denied
+        setLocationName("Set Location"); 
         setLocationLoading(false);
       }
     );
   };
+
+  // ✅ Auto-run location on mount
+  useEffect(() => {
+    handleLocationClick();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -186,7 +192,7 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
           {/* Header Row */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-6">
               <div>
-                  {/* --- UPDATED LOCATION COMPONENT --- */}
+                  {/* LOCATION COMPONENT */}
                   <div 
                     onClick={handleLocationClick}
                     className="flex items-center gap-2 mb-2 opacity-60 hover:opacity-100 transition-opacity cursor-pointer w-fit group"
@@ -212,50 +218,38 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
                     </span>
                   </div>
 
-                  <h1 className="text-3xl md:text-4xl font-extrabold text-gray-900 tracking-tight leading-tight">
+                  {/* HEADER TEXT */}
+                  <h1 className="text-2xl md:text-4xl font-extrabold text-gray-900 tracking-tight leading-tight">
                     {getGreeting()}, <span className="text-violet-600">{profile?.username || profile?.firstName || 'Friend'}</span>.
                   </h1>
               </div>
 
-              {/* Safety Filters */}
-              {profile?.restrictions && profile.restrictions.length > 0 && (
-                <div className="flex flex-wrap gap-2 items-center md:justify-end">
-                    {profile.restrictions.map((r, i) => (
-                        <div key={i} className="flex items-center gap-1.5 pl-2 pr-3 py-1.5 rounded-full text-xs font-semibold bg-gray-50 border border-gray-100 text-gray-600 shadow-sm">
-                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400"></div>
-                            {r}
-                        </div>
-                    ))}
-                    <button onClick={() => setView('settings')} className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-50 hover:bg-gray-100 text-gray-400 transition-colors">
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
-                    </button>
-                </div>
-              )}
+              {/* ✅ REMOVED: Allergen filter chips were here. They are gone now. */}
           </div>
 
-          {/* SEARCH BAR */}
+          {/* ✅ UPDATED SEARCH BAR (Matches Recipes.jsx Style) */}
           <div className="relative w-full group z-20 mb-6">
              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                <svg className="w-5 h-5 text-gray-400 group-focus-within:text-violet-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
              </div>
              <input 
                 type="text" 
                 placeholder="Search restaurants, cravings..." 
                 value={dashboardSearch}
                 onChange={(e) => setDashboardSearch(e.target.value)}
-                className="block w-full pl-12 pr-4 py-3.5 bg-white border border-gray-200 rounded-2xl text-gray-900 font-medium shadow-sm focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all duration-300 placeholder-gray-400"
+                className="w-full bg-gray-100 rounded-xl pl-12 pr-4 py-4 font-medium text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all"
              />
           </div>
 
           {/* --- CATEGORY FILTERS --- */}
           {!dashboardSearch && (
-            <div className="flex flex-wrap gap-2 items-center pb-2">
+            <div className="flex overflow-x-auto gap-3 pb-4 hide-scroll snap-x">
                 {CATEGORIES.map((cat) => (
                     <button 
                         key={cat.id}
                         onClick={() => handleCategoryClick(cat.id)}
                         className={`
-                            group flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-all duration-200 border
+                            snap-start flex-shrink-0 flex items-center gap-2 px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-200 border whitespace-nowrap
                             ${activeCategory === cat.id
                                 ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
                                 : 'bg-white text-gray-600 border-gray-200 hover:border-violet-300 hover:bg-violet-50' 
@@ -268,7 +262,7 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
                 ))}
                 
                 {activeCategory && (
-                    <button onClick={() => { setActiveCategory(null); setCategoryResults([]); }} className="text-xs font-bold text-gray-400 hover:text-rose-600 ml-2 transition-colors">
+                    <button onClick={() => { setActiveCategory(null); setCategoryResults([]); }} className="text-xs font-bold text-gray-400 hover:text-rose-600 ml-2 whitespace-nowrap">
                         ✕ Clear
                     </button>
                 )}
@@ -278,7 +272,7 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
 
       {/* --- PARTNER AD CAROUSEL --- */}
       {!dashboardSearch && !activeCategory && (
-        <div className="relative overflow-hidden rounded-3xl shadow-xl shadow-gray-200 group cursor-pointer h-[320px] md:h-[260px]">
+        <div className="relative overflow-hidden rounded-3xl shadow-xl shadow-gray-200 group cursor-pointer h-auto min-h-[340px] md:h-[260px]">
            <div 
              className="absolute inset-0 flex transition-transform duration-700 ease-out h-full"
              style={{ transform: `translateX(-${currentAdIndex * 100}%)` }}
@@ -287,7 +281,7 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
                 <div key={ad.id} className={`w-full h-full flex-shrink-0 relative bg-gradient-to-br ${ad.gradient} text-white`}>
                      <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
                      <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-8 gap-8 h-full">
-                        <div className="flex-1 text-center md:text-left">
+                        <div className="flex-1 text-center md:text-left z-20">
                             <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
                                 <div className={`inline-block bg-white/10 backdrop-blur-sm border border-white/10 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${ad.badgeColor}`}>Partner</div>
                                 <div className="h-8 w-8 bg-white/90 rounded-full p-1 flex items-center justify-center shadow-sm">
@@ -300,7 +294,7 @@ const Dashboard = ({ setView, userEmail, profile, onOpenMenu }) => {
                             </p>
                             <button className={`bg-white px-6 py-2.5 rounded-xl text-sm font-bold hover:scale-105 transition-all shadow-lg active:scale-95 ${ad.buttonColor}`}>Claim Offer</button>
                         </div>
-                        <div className="relative w-full md:w-48 h-32 md:h-auto shrink-0 rounded-xl overflow-hidden shadow-2xl border-2 border-white/10 transform md:rotate-3 group-hover:rotate-0 transition-transform duration-500">
+                        <div className="relative w-full md:w-48 h-40 md:h-auto shrink-0 rounded-xl overflow-hidden shadow-2xl border-2 border-white/10 transform md:rotate-3 group-hover:rotate-0 transition-transform duration-500">
                             <img src={ad.image} alt={ad.name} className="object-cover w-full h-full" />
                         </div>
                      </div>

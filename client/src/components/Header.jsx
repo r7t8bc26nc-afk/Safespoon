@@ -2,26 +2,24 @@ import React from 'react';
 
 export const Header = ({ userPhoto, onLogout, setView }) => {
   return (
-    <header className="h-20 bg-white/80 backdrop-blur-md border-b border-gray-100 px-6 md:px-8 flex items-center justify-between sticky top-0 z-50">
+    <header className="h-20 bg-white/90 backdrop-blur-md border-b border-gray-100 px-6 md:px-8 flex items-center justify-between sticky top-0 z-50 transition-all duration-300">
       
-      {/* LEFT: Mobile Logo (Hidden on Desktop) */}
+      {/* LEFT: Logo (Prominent Mobile Version) */}
       <div className="flex-1 flex items-center">
-         <span 
-            className="text-xl font-bold text-gray-900 md:hidden"
-            style={{ fontFamily: '"Host Grotesk", sans-serif', fontWeight: 700, letterSpacing: '-0.03em' }}
+         <button 
+            onClick={() => setView('dashboard')}
+            className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:opacity-80 transition-opacity"
+            style={{ fontFamily: '"Host Grotesk", sans-serif', letterSpacing: '-0.05em' }}
         >
             Safespoon
-        </span>
+        </button>
       </div>
 
       {/* RIGHT: User Actions */}
       <div className="flex items-center gap-6 ml-auto">
         
-
-        {/* Profile */}
+        {/* Profile Avatar */}
         <div className="flex items-center">
-          
-          {/* Avatar - Clickable for Settings */}
           <button 
             type="button"
             onClick={() => {
@@ -34,10 +32,10 @@ export const Header = ({ userPhoto, onLogout, setView }) => {
               <img 
                 src={userPhoto} 
                 alt="Profile" 
-                className="h-10 w-10 rounded-full border-2 border-white shadow-sm object-cover group-hover:border-violet-100 transition-all" 
+                className="h-10 w-10 rounded-full shadow-md object-cover group-hover:border-violet-200 transition-all" 
               />
             ) : (
-              <div className="h-10 w-10 rounded-full bg-violet-50 text-violet-600 flex items-center justify-center font-bold text-sm border-2 border-white shadow-sm group-hover:bg-violet-100 transition-colors">
+              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-violet-100 to-fuchsia-100 text-violet-600 flex items-center justify-center font-black text-sm shadow-md group-hover:scale-105 transition-transform">
                 U
               </div>
             )}
