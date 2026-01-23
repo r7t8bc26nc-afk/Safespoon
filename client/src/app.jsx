@@ -13,7 +13,7 @@ import { Recipes } from './components/Recipes';
 import { Favorites } from './components/Favorites';
 import { Blog } from './components/Blog';
 import Dashboard from './components/Dashboard';
-import Settings from './components/Settings';
+import Settings from './components/settings';
 import Login from './components/Login';
 import Onboarding from './components/Onboarding';
 
