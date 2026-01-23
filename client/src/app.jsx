@@ -9,7 +9,7 @@ import Dashboard from './components/Dashboard';
 import { RestaurantExplorer } from './components/RestaurantExplorer';
 import { Recipes } from './components/Recipes';
 import { Blog } from './components/Blog';
-import Settings from './components/Settings';
+import Settings from './components/settings';
 import Onboarding from './components/Onboarding';
 import Login from './components/Login';
 
