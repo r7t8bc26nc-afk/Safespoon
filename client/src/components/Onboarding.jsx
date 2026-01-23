@@ -1,43 +1,52 @@
 import React, { useState } from 'react';
-import { getAuth } from "firebase/auth";
+import { getAuth, signOut } from "firebase/auth";
 import { db } from '../firebase';
 import { doc, setDoc } from "firebase/firestore";
 
-const CONDITIONS_LIST = [
-    "Diabetes (T1)", "Diabetes (T2)", "Hypertension", "Cholesterol", "Heart Disease", 
-    "Asthma", "Arthritis", "Kidney Issue", "Liver Issue", "PCOS", "Celiac", "IBS", "Obesity",
-    "Migraines", "Gout", "Anemia", "Acid Reflux", "Lupus", "Thyroid"
+// --- DATA ---
+const CONDITIONS = [
+    { id: 't1', label: "Diabetes T1", size: 'xl' },
+    { id: 't2', label: "Diabetes T2", size: 'lg' },
+    { id: 'hyp', label: "Hypertension", size: 'xl' },
+    { id: 'chol', label: "Cholesterol", size: 'md' },
+    { id: 'heart', label: "Heart Disease", size: 'lg' },
+    { id: 'asthma', label: "Asthma", size: 'sm' },
+    { id: 'arth', label: "Arthritis", size: 'sm' },
+    { id: 'celiac', label: "Celiac", size: 'xl' },
+    { id: 'ibs', label: "IBS", size: 'md' },
+    { id: 'pcos', label: "PCOS", size: 'md' },
+    { id: 'gast', label: "Gastritis", size: 'sm' },
+    { id: 'acid', label: "Acid Reflux", size: 'md' },
+    { id: 'thyroid', label: "Thyroid", size: 'sm' },
+    { id: 'anemia', label: "Anemia", size: 'sm' }
 ];
 
-const RESTRICTIONS_LIST = [
-    "Gluten", "Dairy", "Soy", "Peanuts", "Tree Nuts", "Eggs", "Shellfish", "Fish",
-    "Sodium", "Sugar", "Keto", "Vegan", "Vegetarian", "Paleo", "Halal", "Kosher",
-    "Pork", "Beef", "Chicken", "Sesame", "Corn", "Mustard"
+const RESTRICTIONS = [
+    { id: 'gf', label: "Gluten", size: 'xl' },
+    { id: 'df', label: "Dairy", size: 'xl' },
+    { id: 'nut', label: "Peanuts", size: 'lg' },
+    { id: 'tree', label: "Tree Nuts", size: 'lg' },
+    { id: 'soy', label: "Soy", size: 'sm' },
+    { id: 'egg', label: "Eggs", size: 'md' },
+    { id: 'shell', label: "Shellfish", size: 'xl' },
+    { id: 'fish', label: "Fish", size: 'md' },
+    { id: 'sesame', label: "Sesame", size: 'sm' },
+    { id: 'corn', label: "Corn", size: 'sm' },
+    { id: 'beef', label: "Beef", size: 'md' },
+    { id: 'pork', label: "Pork", size: 'md' },
+    { id: 'vegan', label: "Vegan", size: 'xl' },
+    { id: 'keto', label: "Keto", size: 'md' },
+    { id: 'halal', label: "Halal", size: 'md' }
 ];
-
-// Helper for varied bubble sizes
-const getBubbleSize = (index) => {
-    const sizes = [
-      "w-24 h-24 text-xs md:w-28 md:h-28 md:text-sm", 
-      "w-28 h-28 text-sm md:w-32 md:h-32 md:text-sm", 
-      "w-32 h-32 text-sm md:w-40 md:h-40 md:text-base" 
-    ];
-    return sizes[index % sizes.length];
-};
 
 const Onboarding = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const auth = getAuth();
-
-  // Updated Data State (Removed Height/Weight, Added DOB/Mobile)
-  const [formData, setFormData] = useState({
-    firstName: '', lastName: '', mobile: '',
-    dob: '', gender: ''
-  });
-  
+  const [formData, setFormData] = useState({ firstName: '', lastName: '', mobile: '', dob: '', gender: '' });
   const [conditions, setConditions] = useState(new Set());
   const [restrictions, setRestrictions] = useState(new Set());
+
+  const auth = getAuth();
 
   const updateForm = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
   
@@ -48,6 +57,15 @@ const Onboarding = ({ onComplete }) => {
     updateFn(newSet);
   };
 
+  const handleSkip = async () => {
+      try {
+          await signOut(auth);
+      } catch (error) {
+          console.error("Error skipping onboarding:", error);
+          window.location.reload();
+      }
+  };
+
   const handleFinish = async () => {
     setLoading(true);
     const user = auth.currentUser;
@@ -56,227 +74,168 @@ const Onboarding = ({ onComplete }) => {
     try {
       await setDoc(doc(db, "users", user.uid), {
         ...formData,
+        username: `${formData.firstName} ${formData.lastName}`,
         conditions: Array.from(conditions),
         restrictions: Array.from(restrictions),
         onboardingComplete: true,
+        favorites: [],
         createdAt: new Date().toISOString()
       }, { merge: true });
-      onComplete(); 
+      
+      onComplete();
     } catch (err) {
-      console.error(err);
+      console.error("Onboarding finish error:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  const getBubbleStyle = (size, isActive) => {
+    let base = "rounded-full flex items-center justify-center text-center p-2 font-black leading-tight transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) cursor-pointer shadow-sm animate-float ";
+    let sizeClasses = "";
+    switch(size) {
+        case 'xl': sizeClasses = isActive ? "w-48 h-48 text-2xl" : "w-40 h-40 text-xl"; break;
+        case 'lg': sizeClasses = isActive ? "w-40 h-40 text-xl" : "w-32 h-32 text-lg"; break;
+        case 'md': sizeClasses = isActive ? "w-32 h-32 text-lg" : "w-28 h-28 text-sm"; break;
+        case 'sm': sizeClasses = isActive ? "w-28 h-28 text-sm" : "w-24 h-24 text-xs"; break;
+        default: sizeClasses = "w-28 h-28 text-sm";
+    }
+
+    let colorClasses = isActive 
+        ? "bg-violet-600 text-white shadow-2xl z-50 scale-110" 
+        : "bg-slate-100 text-slate-400 hover:bg-white hover:text-slate-900";
+
+    return base + sizeClasses + " " + colorClasses;
+  };
+
   return (
-    <div className="h-screen flex flex-col md:flex-row bg-white overflow-hidden font-sans text-slate-800">
+    <div className="min-h-screen bg-white relative flex flex-col font-sans text-slate-900 overflow-hidden">
       
       <style>{`
         @keyframes float {
           0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-10px); }
+          50% { transform: translateY(-12px); }
         }
         .animate-float { animation: float 6s ease-in-out infinite; }
-        .bubble-selected {
-          transform: scale(1.1);
-          box-shadow: 0 10px 25px -5px rgba(139, 92, 246, 0.5);
-          z-index: 20;
-        }
-        /* Hide Scrollbar */
         .hide-scroll::-webkit-scrollbar { display: none; }
-        .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
 
-      {/* LEFT SIDE: SIDEBAR */}
-      <div className="hidden md:block w-1/3 bg-gray-900 relative overflow-hidden">
-        <img src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=80" className="absolute inset-0 w-full h-full object-cover opacity-90" alt="Sidebar" />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
-        <div className="absolute bottom-12 left-12 right-12 text-white">
-          <h1 className="text-3xl font-bold leading-tight mb-4">Precision nutrition,<br />simplified.</h1>
-          <div className="flex gap-2 mt-6">
-             <div className="h-1 bg-white/30 w-full rounded-full overflow-hidden">
-                <div className="h-full bg-white transition-all duration-500" style={{ width: `${step * 33.33}%` }}></div>
-             </div>
-          </div>
-        </div>
+      {/* --- HEADER (Matched to Login.jsx) --- */}
+      <div className="pt-8 pb-4 px-8 bg-white z-30 sticky top-0 flex justify-between items-center">
+         <span className="text-3xl font-semibold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 font-['Host_Grotesk']">
+            Safespoon
+         </span>
+         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
+            Step {step} / 3
+         </div>
       </div>
 
-      {/* RIGHT SIDE: INTERACTIVE AREA */}
-      <div className="flex-1 flex flex-col h-full relative bg-slate-50">
-        
-        {/* Header */}
-        <div className="h-16 flex justify-between items-center px-8 z-20 shrink-0">
-           {step > 1 ? (
-             <button onClick={() => setStep(step - 1)} className="text-slate-400 font-bold text-sm flex items-center gap-2 hover:text-violet-600 transition-colors">
-               ← Back
-             </button>
-           ) : <div />}
-           <span className="text-xs font-bold text-slate-300 uppercase tracking-widest">Step {step} / 3</span>
-        </div>
-
-        {/* SCROLLABLE CONTENT AREA */}
-        <div className="flex-1 overflow-y-auto px-4 md:px-8 hide-scroll relative">
-          <div className="max-w-4xl mx-auto py-4 text-center"> 
-            
-            {/* STEP 1: BASIC INFO (Cleaned Up) */}
-            {step === 1 && (
-              <div className="animate-fade-in max-w-xl mx-auto text-left">
-                <h2 className="text-3xl font-bold text-slate-900 mb-2">Let's get to know you.</h2>
-                <p className="text-slate-500 text-base mb-10">We need your baseline to calculate safety metrics.</p>
-
-                {/* NO CONTAINER BOX - Clean Layout */}
-                <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-6">
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">First Name</label>
-                        <input type="text" value={formData.firstName} onChange={(e) => updateForm('firstName', e.target.value)} className="w-full bg-transparent border-b-2 border-slate-200 py-3 font-semibold text-lg focus:border-violet-500 outline-none transition-all placeholder-slate-300" placeholder="Jane" />
-                    </div>
-                    <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Last Name</label>
-                        <input type="text" value={formData.lastName} onChange={(e) => updateForm('lastName', e.target.value)} className="w-full bg-transparent border-b-2 border-slate-200 py-3 font-semibold text-lg focus:border-violet-500 outline-none transition-all placeholder-slate-300" placeholder="Doe" />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-6">
-                      <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Date of Birth</label>
-                        <input type="date" value={formData.dob} onChange={(e) => updateForm('dob', e.target.value)} className="w-full bg-transparent border-b-2 border-slate-200 py-3 font-semibold text-lg focus:border-violet-500 outline-none transition-all text-slate-600" />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold text-slate-400 uppercase ml-1">Mobile Number</label>
-                        <input type="tel" value={formData.mobile} onChange={(e) => updateForm('mobile', e.target.value)} className="w-full bg-transparent border-b-2 border-slate-200 py-3 font-semibold text-lg focus:border-violet-500 outline-none transition-all placeholder-slate-300" placeholder="(555) 000-0000" />
-                      </div>
-                  </div>
-
-                  <div className="pt-4">
-                     <label className="text-xs font-bold text-slate-400 uppercase block mb-3 ml-1">Gender Identity</label>
-                     <div className="flex flex-wrap gap-2">
-                        {['Female', 'Male', 'Non-binary', 'Prefer not to say'].map(g => (
-                            <button 
-                                key={g} 
-                                onClick={() => updateForm('gender', g)}
-                                className={`px-5 py-2.5 rounded-full border font-bold text-sm transition-all ${
-                                    formData.gender === g 
-                                    ? 'bg-slate-900 text-white border-slate-900' 
-                                    : 'bg-white text-slate-500 border-slate-200 hover:border-slate-400'
-                                }`}
-                            >
-                                {g}
-                            </button>
-                        ))}
-                     </div>
-                  </div>
+      <div className="flex-1 overflow-y-auto pb-48 no-scrollbar relative">
+         {/* STEP 1: IDENTITY */}
+         {step === 1 && (
+            <div className="px-6 pt-12 animate-fade-in max-w-lg mx-auto">
+                <div className="mb-14 text-center">
+                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-4">
+                        Let's get <br/> <span className="text-violet-600">started.</span>
+                    </h1>
+                    <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-xs mx-auto">
+                        Your profile helps us personalize your safety experience.
+                    </p>
                 </div>
-              </div>
-            )}
 
-            {/* STEP 2: CONDITIONS (Organic Layout) */}
-            {step === 2 && (
-              <div>
-                 <h2 className="text-3xl font-bold text-slate-900 mb-2">Medical History</h2>
-                 <p className="text-slate-500 text-base mb-8">Tap the bubbles that apply to you.</p>
-                 
-                 {/* Flex container with negative margins to simulate organic packing */}
-                 <div className="flex flex-wrap justify-center items-center content-center px-2 pb-24 gap-4 max-w-3xl mx-auto">
-                    {CONDITIONS_LIST.map((item, index) => {
-                        const isSelected = conditions.has(item);
-                        const sizeClass = getBubbleSize(index);
-                        const delay = { animationDelay: `${(index % 5) * 0.2}s` };
-                        
-                        // STAGGER LOGIC: Push every even item down, every 3rd item up
-                        let staggerClass = "";
-                        if (index % 2 === 0) staggerClass = "translate-y-4"; 
-                        if (index % 3 === 0) staggerClass = "-translate-y-2";
+                <div className="space-y-8">
+                    <div className="grid grid-cols-2 gap-5">
+                        <div className="space-y-3 text-left">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                First Name
+                            </label>
+                            <input type="text" value={formData.firstName} onChange={(e) => updateForm('firstName', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all placeholder-slate-300" placeholder="Jane" />
+                        </div>
+                        <div className="space-y-3 text-left">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                                Last Name
+                            </label>
+                            <input type="text" value={formData.lastName} onChange={(e) => updateForm('lastName', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all placeholder-slate-300" placeholder="Doe" />
+                        </div>
+                    </div>
 
-                        return (
-                          <button
-                            key={item}
-                            style={delay}
-                            onClick={() => toggleSet(conditions, item, setConditions)}
-                            className={`
-                                ${sizeClass} ${staggerClass} rounded-full 
-                                animate-float transition-all duration-300 ease-out
-                                flex items-center justify-center text-center leading-tight p-3
-                                font-semibold cursor-pointer
-                                ${isSelected 
-                                    ? 'bg-violet-500 text-white bubble-selected' 
-                                    : 'bg-white text-slate-500 shadow-sm hover:text-violet-600 hover:shadow-md hover:scale-105'
-                                }
-                            `}
-                          >
-                            {item}
-                          </button>
-                        );
-                    })}
-                 </div>
-              </div>
-            )}
+                    <div className="space-y-3 text-left">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                            <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
+                            Mobile Number
+                        </label>
+                        <input type="tel" value={formData.mobile} onChange={(e) => updateForm('mobile', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all placeholder-slate-300" placeholder="(555) 123-4567" />
+                    </div>
 
-            {/* STEP 3: RESTRICTIONS (Organic Layout) */}
-            {step === 3 && (
-              <div>
-                 <h2 className="text-3xl font-bold text-slate-900 mb-2">Food Shield</h2>
-                 <p className="text-slate-500 text-base mb-8">Select ingredients to block completely.</p>
-                 
-                 <div className="flex flex-wrap justify-center items-center content-center px-2 pb-24 gap-4 max-w-3xl mx-auto">
-                    {RESTRICTIONS_LIST.map((item, index) => {
-                        const isSelected = restrictions.has(item);
-                        const sizeClass = getBubbleSize(index + 2);
-                        const delay = { animationDelay: `${(index % 4) * 0.3}s` };
-                        
-                        // Random-ish stagger for variety
-                        let staggerClass = "";
-                        if (index % 2 !== 0) staggerClass = "translate-y-6";
-                        
-                        return (
-                          <button
-                            key={item}
-                            style={delay}
-                            onClick={() => toggleSet(restrictions, item, setRestrictions)}
-                            className={`
-                                ${sizeClass} ${staggerClass} rounded-full 
-                                animate-float transition-all duration-300 ease-out
-                                flex items-center justify-center text-center leading-tight p-3
-                                font-semibold cursor-pointer
-                                ${isSelected 
-                                    ? 'bg-violet-600 text-white bubble-selected' 
-                                    : 'bg-white text-slate-500 shadow-sm hover:text-violet-600 hover:shadow-md hover:scale-105'
-                                }
-                            `}
-                          >
-                            {item}
-                          </button>
-                        );
-                    })}
-                 </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-
-        {/* FOOTER */}
-        <div className="absolute bottom-0 left-0 right-0 py-6 flex justify-center z-50 pointer-events-none">
-            <div className="pointer-events-auto">
-              {step < 3 ? (
-                  <button 
-                    onClick={() => setStep(step + 1)}
-                    className="bg-violet-500 text-white px-10 py-3 rounded-full font-bold text-sm hover:bg-violet-600 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-violet-500/20"
-                  >
-                    Continue
-                  </button>
-              ) : (
-                  <button 
-                    onClick={handleFinish}
-                    disabled={loading}
-                    className="bg-violet-600 text-white px-10 py-3 rounded-full font-bold text-sm hover:bg-violet-700 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-violet-600/30 disabled:opacity-70"
-                  >
-                    {loading ? "Building Profile..." : "Launch Dashboard 🚀"}
-                  </button>
-              )}
+                    <div className="grid grid-cols-2 gap-5">
+                        <div className="space-y-3 text-left">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                                Birthday
+                            </label>
+                            <input type="date" value={formData.dob} onChange={(e) => updateForm('dob', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all text-slate-500" />
+                        </div>
+                        <div className="space-y-3 text-left">
+                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                                Gender
+                            </label>
+                            <select value={formData.gender} onChange={(e) => updateForm('gender', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all appearance-none">
+                                <option value="" disabled>Select</option>
+                                <option value="Female">Female</option>
+                                <option value="Male">Male</option>
+                                <option value="Non-binary">Non-binary</option>
+                                <option value="Prefer not to say">Prefer not to say</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </div>
+         )}
+
+         {/* STEP 2 & 3: BUBBLES */}
+         {(step === 2 || step === 3) && (
+            <div className="animate-fade-in min-h-full flex flex-col">
+                <div className="px-8 pt-8 pb-8 text-center max-w-lg mx-auto">
+                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none mb-3">
+                        {step === 2 ? "Medical History." : "Food Shield."}
+                    </h1>
+                    <p className="text-slate-500 font-medium text-lg leading-relaxed">
+                        {step === 2 ? "Tap any conditions you have." : "Tap ingredients to avoid."}
+                    </p>
+                </div>
+
+                <div className="w-[110%] -ml-[5%] flex flex-wrap justify-center content-center gap-2 md:gap-4 pb-32 px-2 overflow-visible">
+                    {(step === 2 ? CONDITIONS : RESTRICTIONS).map((item, i) => {
+                        const activeSet = step === 2 ? conditions : restrictions;
+                        const isActive = activeSet.has(item.label);
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => toggleSet(activeSet, item.label, step === 2 ? setConditions : setRestrictions)}
+                                style={{ animationDelay: `${(i % 5) * 0.5}s` }}
+                                className={getBubbleStyle(item.size, isActive)}
+                            >
+                                {item.label}
+                            </button>
+                        )
+                    })}
+                </div>
+            </div>
+         )}
+      </div>
+
+      {/* --- STICKY BOTTOM CTA --- */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 pt-12 bg-gradient-to-t from-white via-white/95 to-transparent z-50 flex justify-center">
+         <button 
+            onClick={() => step < 3 ? setStep(step + 1) : handleFinish()} 
+            disabled={loading} 
+            className="w-full max-w-md h-16 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:scale-[1.01] active:scale-[0.99] transition-all"
+         >
+            {loading ? "Saving..." : (step === 3 ? "Launch Dashboard" : "Next")}
+         </button>
       </div>
     </div>
   );

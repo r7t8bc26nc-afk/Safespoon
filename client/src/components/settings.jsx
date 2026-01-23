@@ -42,7 +42,8 @@ const Settings = () => {
     const isActive = profile?.restrictions?.includes(restriction);
 
     try {
-      // Use setDoc with merge to prevent crashes on new accounts
+      // ✅ FIX: Use setDoc with merge to ensure document exists
+      // This prevents the "crash -> redirect to signup" loop on mobile
       if (isActive) {
         await updateDoc(userRef, { restrictions: arrayRemove(restriction) });
       } else {
@@ -59,7 +60,7 @@ const Settings = () => {
     const userRef = doc(db, "users", user.uid);
     try {
         // ✅ FIX: Use setDoc with { merge: true } instead of updateDoc
-        // This creates the document if it doesn't exist, preventing the "Sign Up" redirect crash.
+        // This creates the missing database file if it doesn't exist yet.
         await setDoc(userRef, { username: editName }, { merge: true });
         setIsEditing(false);
     } catch (err) {

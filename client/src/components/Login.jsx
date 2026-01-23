@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
 
 const Login = () => {
-  // --- SPLASH STATE ---
   const [showSplash, setShowSplash] = useState(true);
-
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -14,11 +12,10 @@ const Login = () => {
 
   const auth = getAuth();
 
-  // --- SPLASH TIMER ---
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 2500); 
+    }, 2000); 
     return () => clearTimeout(timer);
   }, []);
 
@@ -54,137 +51,133 @@ const Login = () => {
     }
   };
 
-  // --- SPLASH SCREEN (Wordmark Only) ---
   if (showSplash) {
     return (
-      <div className="fixed inset-0 bg-gray-900 z-50 flex flex-col items-center justify-center text-white transition-opacity duration-700 ease-out">
-        {/* Icon removed, just text now */}
-        <h1 className="text-5xl font-extrabold tracking-tight text-center animate-pulse">Safespoon</h1>
-        <p className="text-gray-400 mt-3 text-center font-medium tracking-wide">Eat without worry.</p>
+      <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
+        <h1 className="text-5xl font-semibold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 animate-pulse font-['Host_Grotesk']">
+            Safespoon
+        </h1>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col md:flex-row font-sans text-slate-800 bg-white overflow-hidden animate-fade-in">
+    <div className="min-h-screen flex flex-col md:flex-row font-sans text-slate-900 bg-white overflow-hidden animate-fade-in relative">
       
-      {/* LEFT SIDE: BRANDING */}
-      <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-gray-900 relative flex-col justify-between p-12 text-white overflow-hidden">
+      {/* Desktop Visual Side */}
+      <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-slate-900 relative flex-col justify-between p-12 text-white overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img 
-            src="https://images.unsplash.com/photo-1490645935967-10de6ba17061?auto=format&fit=crop&w=1200&q=80" 
-            className="w-full h-full object-cover" 
+            src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80" 
+            className="w-full h-full object-cover opacity-60" 
             alt="Food background" 
           />
-          <div className="absolute inset-0 bg-black/60"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/40 to-transparent"></div>
         </div>
         
         <div className="relative z-10">
-          <div className="flex items-center gap-3 mb-6">
-            {/* Icon removed */}
-            <h1 className="text-3xl font-bold tracking-tight">Safespoon</h1>
-          </div>
+          <h1 className="text-3xl font-semibold tracking-tighter font-['Host_Grotesk']">Safespoon</h1>
         </div>
 
         <div className="relative z-10">
-          <blockquote className="text-2xl font-bold leading-relaxed mb-6">
-            "Finally, I can eat out without fear. Safespoon helps me navigate menus instantly."
+          <blockquote className="text-3xl font-bold leading-tight mb-8">
+            "I used to guess. Now I know. Dining out is fun again."
           </blockquote>
-          <div className="flex items-center gap-4">
-            <div className="h-10 w-10 rounded-full border-2 border-white/20 bg-gray-500 overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100" alt="User" />
-            </div>
-            <div>
-              <p className="text-sm font-bold">Alex M.</p>
-              <p className="text-xs text-gray-400">Pro Member</p>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* RIGHT SIDE: FORM */}
-      <div className="flex-1 flex flex-col h-full bg-white relative">
-        <div className="flex-1 flex flex-col justify-center items-center p-6 md:p-12 overflow-y-auto">
-          <div className="w-full max-w-sm">
-            
-            {/* Mobile Branding (Wordmark Only) */}
-            <div className="md:hidden flex justify-center mb-8">
-               <h1 className="text-3xl font-extrabold text-gray-900 tracking-tight">SafeSpoon</h1>
-            </div>
+      {/* Form Side */}
+      <div className="flex-1 flex flex-col h-full relative">
+        {/* Consistent Pinned Logo for Mobile */}
+        <div className="md:hidden pt-8 px-8 bg-white z-30 sticky top-0">
+           <span className="text-3xl font-semibold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 font-['Host_Grotesk']">
+              Safespoon
+           </span>
+        </div>
 
-            <div className="text-center mb-8">
-              <h2 className="text-2xl font-bold text-gray-900 tracking-tight">
-                {isSignup ? "Create an account" : "Welcome back"}
-              </h2>
-              <p className="text-sm text-gray-500 mt-2">
-                {isSignup ? "Enter your details to get started." : "Please enter your details to sign in."}
-              </p>
-            </div>
+        <div className="flex-1 flex flex-col justify-center relative z-10">
+          <div className="w-full max-w-md mx-auto p-8 pt-0">
+              {/* Centered Heading with Improved Copy */}
+              <div className="text-center mb-16 mt-4">
+                  <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
+                      {isSignup ? "Join the table." : "Welcome back."}
+                  </h2>
+                  <p className="text-lg text-slate-500 font-medium">
+                      {isSignup ? "Start dining out with complete confidence." : "Log in to manage your safety shield."}
+                  </p>
+              </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              {isSignup && (
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-gray-700 ml-1">Full Name</label>
+              <form onSubmit={handleSubmit} className="space-y-5">
+                {isSignup && (
+                  <div className="space-y-2 text-left">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                      <svg className="w-3 h-3 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
+                      Full Name
+                    </label>
+                    <input 
+                      type="text" 
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-slate-900 outline-none transition-all placeholder-slate-300"
+                      placeholder="Harvey Specter"
+                    />
+                  </div>
+                )}
+
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                    <svg className="w-3 h-3 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    Email
+                  </label>
                   <input 
-                    type="text" 
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
-                    placeholder="Quajaee Simmons"
+                    type="email" 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required 
+                    className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-slate-900 outline-none transition-all placeholder-slate-300"
+                    placeholder="harveyspecter@example.com"
                   />
                 </div>
-              )}
 
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-700 ml-1">Email</label>
-                <input 
-                  type="email" 
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required 
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
-                  placeholder="harveyspecter@email.com"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-700 ml-1">Password</label>
-                <input 
-                  type="password" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required 
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl py-3 px-4 font-medium outline-none focus:ring-2 focus:ring-blue-500 transition-all" 
-                  placeholder="••••••••"
-                />
-              </div>
-
-              {error && (
-                <div className="text-red-500 text-xs font-bold text-center bg-red-50 py-2 rounded-lg">
-                  {error}
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
+                    <svg className="w-3 h-3 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    Password
+                  </label>
+                  <input 
+                    type="password" 
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required 
+                    className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-slate-900 outline-none transition-all placeholder-slate-300"
+                    placeholder="••••••••"
+                  />
                 </div>
-              )}
 
-              <button 
-                type="submit" 
-                disabled={loading}
-                className="w-full bg-gray-900 text-white font-bold py-3.5 rounded-xl hover:bg-black active:scale-[0.98] transition-all shadow-lg shadow-gray-900/20 disabled:opacity-50"
-              >
-                {loading ? "Processing..." : (isSignup ? "Create account" : "Login")}
-              </button>
-            </form>
+                {error && (
+                  <div className="text-rose-500 text-xs font-bold text-center bg-rose-50 py-3 rounded-xl border border-rose-100">
+                    {error}
+                  </div>
+                )}
 
-            <div className="relative flex py-6 items-center">
-              <div className="flex-grow border-t border-gray-200"></div>
-              <span className="flex-shrink-0 mx-4 text-xs font-bold text-gray-400 uppercase">Other options</span>
-              <div className="flex-grow border-t border-gray-200"></div>
-            </div>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="w-full h-16 bg-slate-900 text-white font-semibold text-lg rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-slate-200 mt-4 disabled:opacity-70"
+                >
+                  {loading ? "Processing..." : (isSignup ? "Create Account" : "Login")}
+                </button>
+              </form>
 
-            <div className="space-y-3 mb-8">
+              <div className="relative flex py-8 items-center">
+                <div className="flex-grow border-t border-slate-100"></div>
+                <span className="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or continue with</span>
+                <div className="flex-grow border-t border-slate-100"></div>
+              </div>
+
               <button 
                 onClick={handleGoogleLogin} 
-                className="w-full flex items-center justify-center gap-3 bg-white border border-gray-200 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm"
+                className="w-full h-14 flex items-center justify-center gap-3 bg-white border-2 border-slate-100 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 transition-all"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24">
                   <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
@@ -194,29 +187,17 @@ const Login = () => {
                 </svg>
                 Continue with Google
               </button>
-            </div>
 
-            <p className="text-center text-sm text-gray-500">
-              {isSignup ? "Already have an account?" : "Don't have an account?"}
-              <button 
-                onClick={() => { setIsSignup(!isSignup); setError(''); }} 
-                className="font-bold text-gray-900 hover:underline ml-1"
-              >
-                {isSignup ? "Sign in" : "Get Started"}
-              </button>
-            </p>
+              <p className="text-center text-sm text-slate-500 font-medium mt-8">
+                {isSignup ? "Already have an account?" : "Don't have an account?"}
+                <button 
+                  onClick={() => { setIsSignup(!isSignup); setError(''); }} 
+                  className="font-bold text-violet-600 hover:text-violet-700 ml-1 transition-colors"
+                >
+                  {isSignup ? "Sign in" : "Sign up"}
+                </button>
+              </p>
           </div>
-        </div>
-
-        <div className="p-6 text-center w-full">
-            <div className="flex justify-center gap-4 text-xs font-bold text-gray-400">
-                <button className="hover:text-gray-900 transition-colors">Privacy</button>
-                <span>•</span>
-                <button className="hover:text-gray-900 transition-colors">Terms</button>
-                <span>•</span>
-                <button className="hover:text-gray-900 transition-colors">Help</button>
-            </div>
-            <p className="text-[10px] text-gray-300 mt-2">© 2026 SafeSpoon Inc.</p>
         </div>
       </div>
     </div>
