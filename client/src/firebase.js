@@ -2,14 +2,14 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore"; // Add this if you use database
 
-// These use the variables we will set in Vercel in a moment
+// ✅ Hardcoded keys to bypass Vercel issues
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_API_KEY,
-  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_APP_ID
+  apiKey: "AIzaSyBNZ67JjwoFIXXDg5OK6w9SuabhQmzZ7aw",
+  authDomain: "vensight-bfde4.firebaseapp.com",
+  projectId: "vensight-bfde4",
+  storageBucket: "vensight-bfde4.firebasestorage.app",
+  messagingSenderId: "149066473193",
+  appId: "1:149066473193:web:8ba0b6b75866a9923fda78"
 };
 
 const app = initializeApp(firebaseConfig);
