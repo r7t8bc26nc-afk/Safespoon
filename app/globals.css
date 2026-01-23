@@ -1,0 +1,120 @@
+/* app/globals.css */
+:root {
+    --font-main: 'Arial', sans-serif;
+    --color-black: #0F172A;
+    --color-white: #FFFFFF;
+    --color-gray-light: #F1F5F9;
+    --color-gray-text: #94A3B8;
+    --color-teal: #0D9488;
+    --color-red: #EF4444;
+    --color-green: #22c55e;
+  }
+  
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--font-main);
+    background-color: var(--color-white);
+    color: var(--color-black);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+  
+  /* --- COMPONENTS --- */
+  
+  /* 1. The Toggle Buttons */
+  .toggle-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 40px;
+    margin-bottom: 60px;
+    max-width: 500px;
+    width: 100%;
+  }
+  
+  .toggle-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--color-black);
+    background: transparent;
+    color: var(--color-black);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    cursor: pointer;
+    opacity: 0.3;
+    transition: all 0.2s ease;
+  }
+  
+  .toggle-btn.active {
+    background: var(--color-black);
+    color: var(--color-white);
+    opacity: 1;
+  }
+  
+  /* 2. The Input Field */
+  .input-wrapper {
+    width: 100%;
+    max-width: 500px;
+    margin-bottom: 40px;
+    padding: 0 20px; /* Prevent touching edge on mobile */
+    box-sizing: border-box;
+  }
+  
+  .main-input {
+    width: 100%;
+    font-size: 32px;
+    font-weight: 700;
+    border: none;
+    border-bottom: 2px solid var(--color-gray-light);
+    outline: none;
+    padding-bottom: 10px;
+    transition: border-color 0.3s ease;
+  }
+  
+  .main-input:focus {
+    border-bottom-color: var(--color-black);
+  }
+  
+  .main-input::placeholder {
+    color: var(--color-gray-light);
+  }
+  
+  /* 3. The Results List */
+  .results-list {
+    width: 100%;
+    max-width: 500px;
+    list-style: none;
+    padding: 0 20px;
+    margin: 0;
+    box-sizing: border-box;
+  }
+  
+  .result-item {
+    padding: 20px 0;
+    border-bottom: 1px solid var(--color-gray-light);
+    font-size: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .badge-safe {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--color-green);
+    background: #dcfce7; /* Light green bg */
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+  }
+  
+  .error-msg {
+    color: var(--color-red);
+    font-weight: 700;
+    text-align: center;
+    margin-top: 20px;
+  }

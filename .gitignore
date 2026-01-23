@@ -1,0 +1,25 @@
+node_modules
+.DS_Store
+dist/
+
+# Local Secrets
+client/serviceAccountKey.json
+server/serviceAccountKey.json
+
+# Testing
+coverage
+
+# Production
+build
+dist
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Misc
+.DS_Store
+.vscode
