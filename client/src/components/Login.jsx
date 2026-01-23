@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, GoogleAuthProvider, signInWithPopup } from "firebase/auth";
+import { 
+  getAuth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile, 
+  GoogleAuthProvider, 
+  signInWithPopup 
+} from "firebase/auth";
 
 const Login = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -15,7 +22,7 @@ const Login = () => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setShowSplash(false);
-    }, 2000); 
+    }, 2800); 
     return () => clearTimeout(timer);
   }, []);
 
@@ -53,10 +60,46 @@ const Login = () => {
 
   if (showSplash) {
     return (
-      <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center">
-        <h1 className="text-5xl font-semibold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 animate-pulse font-['Host_Grotesk']">
-            Safespoon
-        </h1>
+      <div className="fixed inset-0 bg-white z-[100] flex items-center justify-center overflow-hidden">
+        <div className="relative flex flex-col items-center">
+          {/* Animated Wordmark */}
+          <h1 className="text-6xl md:text-7xl font-black tracking-tighter font-['Host_Grotesk'] overflow-hidden">
+            <span className="inline-block animate-wordmark-reveal text-transparent bg-clip-text bg-gradient-to-r from-violet-600 via-fuchsia-600 to-violet-600 bg-[length:200%_auto] animate-gradient-flow">
+              Safespoon
+            </span>
+          </h1>
+          
+          {/* Subtle line reveal underneath */}
+          <div className="mt-4 w-0 h-1 bg-gradient-to-r from-violet-600 to-fuchsia-600 animate-line-expand rounded-full"></div>
+        </div>
+
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes wordmark-reveal {
+            0% { transform: translateY(100%); opacity: 0; }
+            40% { transform: translateY(0); opacity: 1; }
+            85% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-10%); opacity: 0; }
+          }
+          @keyframes gradient-flow {
+            0% { bg-position: 0% center; }
+            100% { bg-position: 200% center; }
+          }
+          @keyframes line-expand {
+            0% { width: 0; opacity: 0; }
+            30% { width: 80px; opacity: 1; }
+            80% { width: 100px; opacity: 1; }
+            100% { width: 120px; opacity: 0; }
+          }
+          .animate-wordmark-reveal {
+            animation: wordmark-reveal 2.8s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+          }
+          .animate-gradient-flow {
+            animation: gradient-flow 4s linear infinite;
+          }
+          .animate-line-expand {
+            animation: line-expand 2.8s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+          }
+        `}} />
       </div>
     );
   }
@@ -87,8 +130,8 @@ const Login = () => {
       </div>
 
       {/* Form Side */}
-      <div className="flex-1 flex flex-col h-full relative">
-        {/* Consistent Pinned Logo for Mobile */}
+      <div className="flex-1 flex flex-col h-full relative overflow-y-auto">
+        {/* Mobile Header */}
         <div className="md:hidden pt-8 px-8 bg-white z-30 sticky top-0">
            <span className="text-3xl font-semibold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 font-['Host_Grotesk']">
               Safespoon
@@ -96,9 +139,8 @@ const Login = () => {
         </div>
 
         <div className="flex-1 flex flex-col justify-center relative z-10">
-          <div className="w-full max-w-md mx-auto p-8 pt-0">
-              {/* Centered Heading with Improved Copy */}
-              <div className="text-center mb-16 mt-4">
+          <div className="w-full max-w-md mx-auto p-8">
+              <div className="text-center mb-12">
                   <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-2">
                       {isSignup ? "Join the table." : "Welcome back."}
                   </h2>
@@ -188,7 +230,7 @@ const Login = () => {
                 Continue with Google
               </button>
 
-              <p className="text-center text-sm text-slate-500 font-medium mt-8">
+              <p className="text-center text-sm text-slate-500 font-medium mt-8 pb-8">
                 {isSignup ? "Already have an account?" : "Don't have an account?"}
                 <button 
                   onClick={() => { setIsSignup(!isSignup); setError(''); }} 
@@ -200,6 +242,16 @@ const Login = () => {
           </div>
         </div>
       </div>
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        @keyframes fade-in {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        .animate-fade-in {
+          animation: fade-in 1s ease-out forwards;
+        }
+      `}} />
     </div>
   );
 };
