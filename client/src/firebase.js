@@ -1,13 +1,18 @@
-// DELETE THIS (Admin/Service Account)
-// import serviceAccount from './serviceAccountKey.json';
-// admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
-
-// USE THIS INSTEAD (Safe for Client)
 import { initializeApp } from "firebase/app";
+import { getAuth } from "firebase/auth";
+import { getFirestore } from "firebase/firestore"; // Add this if you use database
+
+// These use the variables we will set in Vercel in a moment
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT",
-  // ... other config values from Firebase Console
+  apiKey: import.meta.env.VITE_API_KEY,
+  authDomain: import.meta.env.VITE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_APP_ID
 };
+
 const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app); // Export database
+export default app;
