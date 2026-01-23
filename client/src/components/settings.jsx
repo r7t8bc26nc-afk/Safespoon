@@ -42,7 +42,7 @@ const Settings = () => {
     const isActive = profile?.restrictions?.includes(restriction);
 
     try {
-      // Use setDoc with merge to ensure document exists
+      // Use setDoc with merge to prevent crashes on new accounts
       if (isActive) {
         await updateDoc(userRef, { restrictions: arrayRemove(restriction) });
       } else {
@@ -53,17 +53,18 @@ const Settings = () => {
     }
   };
 
-  // 3. Save Profile Logic (Robust Fix)
+  // 3. Save Profile Logic (CRASH FIX)
   const handleSaveProfile = async () => {
     if (!user || !editName.trim()) return;
     const userRef = doc(db, "users", user.uid);
     try {
-        // Fix: Use setDoc with merge to create profile if it doesn't exist
+        // ✅ FIX: Use setDoc with { merge: true } instead of updateDoc
+        // This creates the document if it doesn't exist, preventing the "Sign Up" redirect crash.
         await setDoc(userRef, { username: editName }, { merge: true });
         setIsEditing(false);
     } catch (err) {
         console.error("Error saving profile:", err);
-        alert("Could not save profile. Check console for details.");
+        alert("Could not save profile. Please try again.");
     }
   };
 
@@ -82,10 +83,10 @@ const Settings = () => {
 
       {/* --- HEADER --- */}
       <div className="pt-6 pb-8 space-y-2">
-        <h1 className="text-3xl md:text-5xl font-black text-gray-900 tracking-tighter leading-none">
+        <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter leading-none">
             Settings.
         </h1>
-        <p className="text-sm md:text-lg text-gray-500 font-medium">
+        <p className="text-lg text-gray-500 font-medium">
             Manage your profile and safety preferences.
         </p>
       </div>
@@ -118,6 +119,7 @@ const Settings = () => {
                                 type="text" 
                                 value={editName}
                                 onChange={(e) => setEditName(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveProfile()}
                                 className="w-full md:w-2/3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
                             />
                         </div>
