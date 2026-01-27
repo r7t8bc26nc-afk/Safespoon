@@ -1,240 +1,311 @@
 import React, { useState } from 'react';
-import { getAuth, signOut } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { db } from '../firebase';
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 
-// --- DATA ---
-const CONDITIONS = [
-    { id: 't1', label: "Diabetes T1", size: 'xl' },
-    { id: 't2', label: "Diabetes T2", size: 'lg' },
-    { id: 'hyp', label: "Hypertension", size: 'xl' },
-    { id: 'chol', label: "Cholesterol", size: 'md' },
-    { id: 'heart', label: "Heart Disease", size: 'lg' },
-    { id: 'asthma', label: "Asthma", size: 'sm' },
-    { id: 'arth', label: "Arthritis", size: 'sm' },
-    { id: 'celiac', label: "Celiac", size: 'xl' },
-    { id: 'ibs', label: "IBS", size: 'md' },
-    { id: 'pcos', label: "PCOS", size: 'md' },
-    { id: 'gast', label: "Gastritis", size: 'sm' },
-    { id: 'acid', label: "Acid Reflux", size: 'md' },
-    { id: 'thyroid', label: "Thyroid", size: 'sm' },
-    { id: 'anemia', label: "Anemia", size: 'sm' }
+// --- DATA SETS ---
+
+// Severity Levels for Logic
+const SEVERITY = {
+  STRICT: 'STRICT', // Medical necessity (Celiac, Anaphylaxis)
+  LIMIT: 'LIMIT',   // Management (Diabetes, CKD) or Lifestyle (Vegan)
+};
+
+const MEDICAL_CONDITIONS = [
+    { 
+        id: 'celiac', 
+        label: "Celiac Disease", 
+        impact: "Prevents intestinal damage.", 
+        severity: SEVERITY.STRICT,
+        autoShield: ["Gluten", "Wheat", "Barley", "Rye", "Malt"] 
+    },
+    { 
+        id: 'ckd', 
+        label: "Kidney Disease (CKD)", 
+        impact: "Controls kidney load and waste buildup.", 
+        severity: SEVERITY.LIMIT,
+        autoShield: ["High Sodium", "High Potassium", "High Phosphorus"] 
+    },
+    { 
+        id: 'diabetes', 
+        label: "Diabetes", 
+        impact: "Stabilizes blood sugar levels.", 
+        severity: SEVERITY.LIMIT,
+        autoShield: ["Refined Sugar", "High Carb"] 
+    },
+    { 
+        id: 'ibd', 
+        label: "IBD (Crohn's/Colitis)", 
+        impact: "Minimizes gut inflammation.", 
+        severity: SEVERITY.LIMIT,
+        autoShield: ["Spicy Foods", "Caffeine"] 
+    },
+    { 
+        id: 'gerd', 
+        label: "Severe GERD", 
+        impact: "Protects esophagus from acid damage.", 
+        severity: SEVERITY.LIMIT,
+        autoShield: ["Acidic Foods", "Caffeine", "Chocolate", "Alcohol"] 
+    }
 ];
 
-const RESTRICTIONS = [
-    { id: 'gf', label: "Gluten", size: 'xl' },
-    { id: 'df', label: "Dairy", size: 'xl' },
-    { id: 'nut', label: "Peanuts", size: 'lg' },
-    { id: 'tree', label: "Tree Nuts", size: 'lg' },
-    { id: 'soy', label: "Soy", size: 'sm' },
-    { id: 'egg', label: "Eggs", size: 'md' },
-    { id: 'shell', label: "Shellfish", size: 'xl' },
-    { id: 'fish', label: "Fish", size: 'md' },
-    { id: 'sesame', label: "Sesame", size: 'sm' },
-    { id: 'corn', label: "Corn", size: 'sm' },
-    { id: 'beef', label: "Beef", size: 'md' },
-    { id: 'pork', label: "Pork", size: 'md' },
-    { id: 'vegan', label: "Vegan", size: 'xl' },
-    { id: 'keto', label: "Keto", size: 'md' },
-    { id: 'halal', label: "Halal", size: 'md' }
+const COMMON_ALLERGENS = [
+    "Peanuts", "Tree Nuts", "Milk", "Eggs", "Shellfish", 
+    "Fish", "Soy", "Wheat", "Sesame"
+];
+
+const LIFESTYLE_DIETS = [
+    { id: 'halal', label: "Halal", description: "Islamic dietary laws", autoShield: ["Pork", "Alcohol"] },
+    { id: 'kosher', label: "Kosher", description: "Jewish dietary laws", autoShield: ["Pork", "Shellfish"] },
+    { id: 'vegan', label: "Vegan", description: "No animal products", autoShield: ["Meat", "Dairy", "Eggs", "Honey"] },
+    { id: 'veg', label: "Vegetarian", description: "No meat", autoShield: ["Meat"] }
 ];
 
 const Onboarding = ({ onComplete }) => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({ firstName: '', lastName: '', mobile: '', dob: '', gender: '' });
-  const [conditions, setConditions] = useState(new Set());
-  const [restrictions, setRestrictions] = useState(new Set());
-
-  const auth = getAuth();
-
-  const updateForm = (field, value) => setFormData(prev => ({ ...prev, [field]: value }));
+  // Reverted to First/Last Name
+  const [formData, setFormData] = useState({ firstName: '', lastName: '' });
   
-  const toggleSet = (set, item, updateFn) => {
-    const newSet = new Set(set);
-    if (newSet.has(item)) newSet.delete(item);
-    else newSet.add(item);
-    updateFn(newSet);
+  // Selections
+  const [conditions, setConditions] = useState([]);
+  const [allergens, setAllergens] = useState(new Set());
+  const [lifestyles, setLifestyles] = useState([]);
+  
+  // Logic to build the sound restriction map
+  const computeRestrictions = () => {
+    const map = {};
+
+    // 1. Process Medical Conditions
+    conditions.forEach(cond => {
+        cond.autoShield.forEach(ing => {
+            if (!map[ing]) map[ing] = { severity: cond.severity, sources: [] };
+            map[ing].sources.push(cond.label);
+            if (cond.severity === SEVERITY.STRICT) map[ing].severity = SEVERITY.STRICT;
+        });
+    });
+
+    // 2. Process Specific Allergens (Always Strict)
+    allergens.forEach(alg => {
+        if (!map[alg]) map[alg] = { severity: SEVERITY.STRICT, sources: [] };
+        map[alg].sources.push("Allergy");
+        map[alg].severity = SEVERITY.STRICT;
+    });
+
+    // 3. Process Lifestyles
+    lifestyles.forEach(diet => {
+        diet.autoShield.forEach(ing => {
+            if (!map[ing]) map[ing] = { severity: SEVERITY.LIMIT, sources: [] };
+            map[ing].sources.push(diet.label);
+        });
+    });
+
+    return map;
   };
 
-  const handleSkip = async () => {
-      try {
-          await signOut(auth);
-      } catch (error) {
-          console.error("Error skipping onboarding:", error);
-          window.location.reload();
-      }
+  const currentRestrictions = computeRestrictions();
+
+  const handleConditionToggle = (condition) => {
+    setConditions(prev => {
+        const exists = prev.find(c => c.id === condition.id);
+        return exists ? prev.filter(c => c.id !== condition.id) : [...prev, condition];
+    });
+  };
+
+  const handleAllergenToggle = (allergen) => {
+      const next = new Set(allergens);
+      next.has(allergen) ? next.delete(allergen) : next.add(allergen);
+      setAllergens(next);
+  };
+
+  const handleLifestyleToggle = (diet) => {
+    setLifestyles(prev => {
+        const exists = prev.find(l => l.id === diet.id);
+        return exists ? prev.filter(l => l.id !== diet.id) : [...prev, diet];
+    });
   };
 
   const handleFinish = async () => {
     setLoading(true);
+    const auth = getAuth();
     const user = auth.currentUser;
-    if (!user) return;
+    
+    if (!user) {
+        console.error("No authenticated user found");
+        setLoading(false);
+        return;
+    }
 
     try {
       await setDoc(doc(db, "users", user.uid), {
-        ...formData,
-        username: `${formData.firstName} ${formData.lastName}`,
-        conditions: Array.from(conditions),
-        restrictions: Array.from(restrictions),
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        profile: {
+            medical: conditions.map(c => c.id),
+            allergens: Array.from(allergens),
+            lifestyles: lifestyles.map(l => l.id),
+        },
+        restrictions: currentRestrictions,
         onboardingComplete: true,
-        favorites: [],
-        createdAt: new Date().toISOString()
+        updatedAt: serverTimestamp() 
       }, { merge: true });
       
       onComplete();
     } catch (err) {
-      console.error("Onboarding finish error:", err);
+      console.error("Database Update Error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  const getBubbleStyle = (size, isActive) => {
-    let base = "rounded-full flex items-center justify-center text-center p-2 font-black leading-tight transition-all duration-500 cubic-bezier(0.34, 1.56, 0.64, 1) cursor-pointer shadow-sm animate-float ";
-    let sizeClasses = "";
-    switch(size) {
-        case 'xl': sizeClasses = isActive ? "w-48 h-48 text-2xl" : "w-40 h-40 text-xl"; break;
-        case 'lg': sizeClasses = isActive ? "w-40 h-40 text-xl" : "w-32 h-32 text-lg"; break;
-        case 'md': sizeClasses = isActive ? "w-32 h-32 text-lg" : "w-28 h-28 text-sm"; break;
-        case 'sm': sizeClasses = isActive ? "w-28 h-28 text-sm" : "w-24 h-24 text-xs"; break;
-        default: sizeClasses = "w-28 h-28 text-sm";
-    }
-
-    let colorClasses = isActive 
-        ? "bg-violet-600 text-white shadow-2xl z-50 scale-110" 
-        : "bg-slate-100 text-slate-400 hover:bg-white hover:text-slate-900";
-
-    return base + sizeClasses + " " + colorClasses;
-  };
-
   return (
-    <div className="min-h-screen bg-white relative flex flex-col font-sans text-slate-900 overflow-hidden">
+    <div className="min-h-screen bg-white font-sans text-slate-900 pb-32">
       
-      <style>{`
-        @keyframes float {
-          0%, 100% { transform: translateY(0px); }
-          50% { transform: translateY(-12px); }
-        }
-        .animate-float { animation: float 6s ease-in-out infinite; }
-        .hide-scroll::-webkit-scrollbar { display: none; }
-      `}</style>
-
-      {/* --- HEADER (Matched to Login.jsx) --- */}
-      <div className="pt-8 pb-4 px-8 bg-white z-30 sticky top-0 flex justify-between items-center">
-         <span className="text-3xl font-semibold tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 font-['Host_Grotesk']">
-            Safespoon
-         </span>
-         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-            Step {step} / 3
-         </div>
+      {/* --- HEADER --- */}
+      <div className="pt-8 px-8 bg-white sticky top-0 flex justify-between items-center z-50 h-20">
+         {/* Back Button (Only shows if step > 1) */}
+         {step > 1 ? (
+             <button 
+                onClick={() => setStep(step - 1)}
+                className="w-10 h-10 flex items-center justify-center rounded-full bg-slate-50 text-slate-900 hover:bg-slate-100 transition-colors"
+             >
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+                </svg>
+             </button>
+         ) : (
+             <div className="w-10" /> // Spacer
+         )}
+         
+         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Step {step} / 5</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-48 no-scrollbar relative">
-         {/* STEP 1: IDENTITY */}
+      <div className="px-6 pt-6 max-w-lg mx-auto">
+         
+         {/* STEP 1: IDENTITY (Reverted to First/Last Name) */}
          {step === 1 && (
-            <div className="px-6 pt-12 animate-fade-in max-w-lg mx-auto">
-                <div className="mb-14 text-center">
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tighter leading-none mb-4">
-                        Let's get <br/> <span className="text-violet-600">started.</span>
-                    </h1>
-                    <p className="text-lg text-slate-500 font-medium leading-relaxed max-w-xs mx-auto">
-                        Your profile helps us personalize your safety experience.
-                    </p>
-                </div>
-
-                <div className="space-y-8">
-                    <div className="grid grid-cols-2 gap-5">
-                        <div className="space-y-3 text-left">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
-                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                First Name
-                            </label>
-                            <input type="text" value={formData.firstName} onChange={(e) => updateForm('firstName', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all placeholder-slate-300" placeholder="Jane" />
-                        </div>
-                        <div className="space-y-3 text-left">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
-                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
-                                Last Name
-                            </label>
-                            <input type="text" value={formData.lastName} onChange={(e) => updateForm('lastName', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all placeholder-slate-300" placeholder="Doe" />
-                        </div>
-                    </div>
-
-                    <div className="space-y-3 text-left">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
-                            <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 18h.01M8 21h8a2 2 0 002-2V5a2 2 0 00-2-2H8a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-                            Mobile Number
-                        </label>
-                        <input type="tel" value={formData.mobile} onChange={(e) => updateForm('mobile', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all placeholder-slate-300" placeholder="(555) 123-4567" />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-5">
-                        <div className="space-y-3 text-left">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
-                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                                Birthday
-                            </label>
-                            <input type="date" value={formData.dob} onChange={(e) => updateForm('dob', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all text-slate-500" />
-                        </div>
-                        <div className="space-y-3 text-left">
-                            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1.5 ml-1">
-                                <svg className="w-3.5 h-3.5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-                                Gender
-                            </label>
-                            <select value={formData.gender} onChange={(e) => updateForm('gender', e.target.value)} className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-xl text-slate-900 outline-none transition-all appearance-none">
-                                <option value="" disabled>Select</option>
-                                <option value="Female">Female</option>
-                                <option value="Male">Male</option>
-                                <option value="Non-binary">Non-binary</option>
-                                <option value="Prefer not to say">Prefer not to say</option>
-                            </select>
-                        </div>
-                    </div>
+            <div className="animate-in fade-in slide-in-from-bottom-4">
+                <h1 className="text-3xl font-black mb-2">Create Profile.</h1>
+                <p className="text-slate-500 mb-8 font-medium">We personalize guidance based on your biology.</p>
+                <div className="space-y-4">
+                    <input 
+                        type="text" 
+                        placeholder="First Name" 
+                        value={formData.firstName} 
+                        onChange={(e) => setFormData({...formData, firstName: e.target.value})} 
+                        className="w-full h-14 bg-slate-50 rounded-2xl px-5 font-bold outline-none border-2 border-transparent focus:border-violet-100 placeholder-slate-300" 
+                    />
+                    <input 
+                        type="text" 
+                        placeholder="Last Name" 
+                        value={formData.lastName} 
+                        onChange={(e) => setFormData({...formData, lastName: e.target.value})} 
+                        className="w-full h-14 bg-slate-50 rounded-2xl px-5 font-bold outline-none border-2 border-transparent focus:border-violet-100 placeholder-slate-300" 
+                    />
                 </div>
             </div>
          )}
 
-         {/* STEP 2 & 3: BUBBLES */}
-         {(step === 2 || step === 3) && (
-            <div className="animate-fade-in min-h-full flex flex-col">
-                <div className="px-8 pt-8 pb-8 text-center max-w-lg mx-auto">
-                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none mb-3">
-                        {step === 2 ? "Medical History." : "Food Shield."}
-                    </h1>
-                    <p className="text-slate-500 font-medium text-lg leading-relaxed">
-                        {step === 2 ? "Tap any conditions you have." : "Tap ingredients to avoid."}
-                    </p>
-                </div>
-
-                <div className="w-[110%] -ml-[5%] flex flex-wrap justify-center content-center gap-2 md:gap-4 pb-32 px-2 overflow-visible">
-                    {(step === 2 ? CONDITIONS : RESTRICTIONS).map((item, i) => {
-                        const activeSet = step === 2 ? conditions : restrictions;
-                        const isActive = activeSet.has(item.label);
+         {/* STEP 2: MEDICAL CONDITIONS */}
+         {step === 2 && (
+            <div className="animate-in fade-in slide-in-from-right-4">
+                <h1 className="text-3xl font-black mb-2">Medical Shield.</h1>
+                <p className="text-slate-500 mb-6 font-medium">Select diagnosed conditions we need to manage.</p>
+                <div className="space-y-3">
+                    {MEDICAL_CONDITIONS.map(c => {
+                        const active = conditions.find(cond => cond.id === c.id);
                         return (
-                            <button
-                                key={item.id}
-                                onClick={() => toggleSet(activeSet, item.label, step === 2 ? setConditions : setRestrictions)}
-                                style={{ animationDelay: `${(i % 5) * 0.5}s` }}
-                                className={getBubbleStyle(item.size, isActive)}
-                            >
-                                {item.label}
+                            <button key={c.id} onClick={() => handleConditionToggle(c)} className={`w-full text-left p-4 rounded-2xl border-2 transition-all ${active ? 'border-violet-600 bg-violet-50' : 'border-slate-100 hover:border-violet-200'}`}>
+                                <div className="flex justify-between items-center">
+                                    <h3 className="font-bold text-slate-900">{c.label}</h3>
+                                    {active && <span className="text-[10px] font-black bg-violet-200 text-violet-800 px-2 py-1 rounded-full">{c.severity}</span>}
+                                </div>
+                                <p className="text-xs text-slate-500 font-medium mt-1">{c.impact}</p>
                             </button>
-                        )
+                        );
                     })}
                 </div>
             </div>
          )}
+
+         {/* STEP 3: SPECIFIC ALLERGENS */}
+         {step === 3 && (
+            <div className="animate-in fade-in slide-in-from-right-4">
+                <h1 className="text-3xl font-black mb-2">Specific Allergens.</h1>
+                <p className="text-slate-500 mb-6 font-medium">Select specific ingredients that trigger a reaction.</p>
+                <div className="grid grid-cols-2 gap-3">
+                    {COMMON_ALLERGENS.map(ing => {
+                        const active = allergens.has(ing);
+                        return (
+                            <button key={ing} onClick={() => handleAllergenToggle(ing)} className={`w-full text-center p-4 rounded-2xl border-2 transition-all ${active ? 'border-red-500 bg-red-50 text-red-900' : 'border-slate-100 text-slate-600 hover:border-slate-200'}`}>
+                                <h3 className="font-bold">{ing}</h3>
+                            </button>
+                        );
+                    })}
+                </div>
+                <p className="text-center text-xs text-slate-400 mt-6">You can verify strictness in the final review.</p>
+            </div>
+         )}
+
+         {/* STEP 4: LIFESTYLE */}
+         {step === 4 && (
+            <div className="animate-in fade-in slide-in-from-right-4">
+                <h1 className="text-3xl font-black mb-2">Lifestyle.</h1>
+                <p className="text-slate-500 mb-6 font-medium">Do you follow specific cultural or personal diets?</p>
+                <div className="grid grid-cols-1 gap-3">
+                    {LIFESTYLE_DIETS.map(diet => {
+                        const active = lifestyles.find(l => l.id === diet.id);
+                        return (
+                            <button key={diet.id} onClick={() => handleLifestyleToggle(diet)} className={`w-full text-left p-5 rounded-2xl border-2 transition-all ${active ? 'border-emerald-500 bg-emerald-50' : 'border-slate-100 hover:border-emerald-100'}`}>
+                                <h3 className="font-bold text-slate-900">{diet.label}</h3>
+                                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider mt-1">{diet.description}</p>
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+         )}
+
+         {/* STEP 5: VERIFICATION */}
+         {step === 5 && (
+            <div className="animate-in fade-in slide-in-from-right-4">
+                <h1 className="text-3xl font-black mb-2">Verification.</h1>
+                <p className="text-slate-500 mb-8 font-medium">
+                    We've built your shield. Review what we are blocking.
+                    <br/><span className="text-xs text-slate-400">(These items will be flagged in your scanner)</span>
+                </p>
+                
+                <div className="flex flex-wrap gap-2">
+                    {Object.entries(currentRestrictions).length === 0 ? (
+                        <div className="w-full text-center py-10 text-slate-300 italic">No active restrictions found.</div>
+                    ) : (
+                        Object.entries(currentRestrictions).map(([name, data]) => (
+                            <div key={name} className={`px-4 py-2 rounded-xl border text-sm flex items-center gap-2 ${data.severity === 'STRICT' ? 'bg-red-50 border-red-100 text-red-800' : 'bg-slate-50 border-slate-100 text-slate-600'}`}>
+                                <div className={`w-2 h-2 rounded-full ${data.severity === 'STRICT' ? 'bg-red-500' : 'bg-slate-400'}`}></div>
+                                <span className="font-bold">{name}</span>
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                <div className="mt-8 bg-violet-50 p-4 rounded-xl">
+                    <h4 className="text-violet-900 font-bold text-sm mb-1">Soundness Check</h4>
+                    <p className="text-violet-700 text-xs leading-relaxed">
+                        We prioritize <strong>Strict</strong> medical needs over lifestyle preferences. Always check packaging directly if you carry an EpiPen.
+                    </p>
+                </div>
+            </div>
+         )}
       </div>
 
-      {/* --- STICKY BOTTOM CTA --- */}
-      <div className="fixed bottom-0 left-0 right-0 p-6 pt-12 bg-gradient-to-t from-white via-white/95 to-transparent z-50 flex justify-center">
+      {/* --- CTA --- */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-white border-t border-slate-50">
          <button 
-            onClick={() => step < 3 ? setStep(step + 1) : handleFinish()} 
-            disabled={loading} 
-            className="w-full max-w-md h-16 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl shadow-slate-200 hover:scale-[1.01] active:scale-[0.99] transition-all"
+            disabled={loading || (step === 1 && (!formData.firstName || !formData.lastName))}
+            onClick={() => step < 5 ? setStep(step + 1) : handleFinish()}
+            className="w-full h-16 bg-slate-900 text-white rounded-2xl font-black text-lg shadow-xl active:scale-95 transition-transform disabled:opacity-50 disabled:active:scale-100"
          >
-            {loading ? "Saving..." : (step === 3 ? "Launch Dashboard" : "Next")}
+            {loading ? "Syncing Shield..." : (step === 5 ? "Launch Dashboard" : "Next")}
          </button>
       </div>
     </div>

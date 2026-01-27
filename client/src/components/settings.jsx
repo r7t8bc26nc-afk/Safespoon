@@ -1,26 +1,39 @@
 import React, { useState, useEffect } from 'react';
-import { getAuth, signOut } from "firebase/auth";
-import { doc, updateDoc, setDoc, arrayUnion, arrayRemove, onSnapshot } from "firebase/firestore";
+import { getAuth, signOut, deleteUser } from "firebase/auth";
+import { doc, setDoc, onSnapshot, deleteDoc } from "firebase/firestore";
 import { db } from '../firebase';
 
-const DIETARY_OPTIONS = [
-  'Gluten', 'Dairy', 'Peanuts', 'Tree Nuts', 'Soy', 
-  'Shellfish', 'Eggs', 'Fish', 'Corn', 'Sesame',
-  'Beef', 'Pork', 'Poultry', 'Vegan', 'Vegetarian'
+// --- MODELS ---
+const MEDICAL_CONDITIONS = [
+    { id: 'celiac', label: "Celiac Disease", impact: "Intestinal Healing" },
+    { id: 'ckd', label: "Chronic Kidney Disease", impact: "Waste Management" },
+    { id: 'diabetes', label: "Diabetes", impact: "Blood Sugar Stability" },
+    { id: 'ibd', label: "IBD (Crohn's/Colitis)", impact: "Gut Inflammation" },
+    { id: 'gerd', label: "Severe GERD", impact: "Esophagus Protection" }
+];
+
+const LIFESTYLE_DIETS = [
+    { id: 'halal', label: "Halal" },
+    { id: 'kosher', label: "Kosher" },
+    { id: 'vegan', label: "Vegan" },
+    { id: 'veg', label: "Vegetarian" }
+];
+
+const INGREDIENT_LIST = [
+    "Gluten", "Dairy", "Peanuts", "Tree Nuts", "Soy", "Eggs", "Shellfish", 
+    "Fish", "Sesame", "Pork", "Beef", "Alcohol", "Caffeine", "Refined Sugar"
 ];
 
 const Settings = () => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
-  
-  // --- EDIT STATE ---
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState('');
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const auth = getAuth();
   const user = auth.currentUser;
 
-  // 1. Fetch & Listen
   useEffect(() => {
     if (!user) return;
     const userRef = doc(db, "users", user.uid);
@@ -28,222 +41,208 @@ const Settings = () => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setProfile(data);
-        setEditName(data.username || user.displayName || ''); // Initialize edit name
+        setEditName(data.username || `${data.firstName} ${data.lastName}` || '');
       }
       setLoading(false);
     });
     return () => unsubscribe();
   }, [user]);
 
-  // 2. Toggle Restrictions
-  const toggleRestriction = async (restriction) => {
+  const updateProfileData = async (key, value) => {
     if (!user) return;
     const userRef = doc(db, "users", user.uid);
-    const isActive = profile?.restrictions?.includes(restriction);
-
     try {
-      // ✅ FIX: Use setDoc with merge to ensure document exists
-      // This prevents the "crash -> redirect to signup" loop on mobile
-      if (isActive) {
-        await updateDoc(userRef, { restrictions: arrayRemove(restriction) });
-      } else {
-        await setDoc(userRef, { restrictions: arrayUnion(restriction) }, { merge: true });
-      }
+        await setDoc(userRef, { [key]: value }, { merge: true });
     } catch (err) {
-      console.error("Error updating settings:", err);
+        console.error("Save error:", err);
     }
   };
 
-  // 3. Save Profile Logic (CRASH FIX)
-  const handleSaveProfile = async () => {
-    if (!user || !editName.trim()) return;
-    const userRef = doc(db, "users", user.uid);
+  const toggleItem = (currentList = [], itemLabel, key) => {
+    const newList = currentList.includes(itemLabel) 
+      ? currentList.filter(i => i !== itemLabel) 
+      : [...currentList, itemLabel];
+    updateProfileData(key, newList);
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
     try {
-        // ✅ FIX: Use setDoc with { merge: true } instead of updateDoc
-        // This creates the missing database file if it doesn't exist yet.
-        await setDoc(userRef, { username: editName }, { merge: true });
-        setIsEditing(false);
+        await deleteDoc(doc(db, "users", user.uid));
+        await deleteUser(user);
+        signOut(auth);
     } catch (err) {
-        console.error("Error saving profile:", err);
-        alert("Could not save profile. Please try again.");
+        console.error("Deletion failed:", err);
+        alert("For security reasons, please log in again before deleting your account.");
     }
   };
 
-  const handleLogout = () => {
-    signOut(auth);
-  };
-
-  if (loading) return <div className="p-8 text-center text-gray-400 font-bold">Loading Settings...</div>;
+  if (loading) return <div className="p-12 text-center text-gray-400 font-bold uppercase tracking-widest text-xs">Syncing Profile Data...</div>;
 
   return (
-    <div className="w-full max-w-4xl mx-auto pb-24 relative">
+    <div className="w-full max-w-4xl mx-auto pb-32">
       
-      {/* Background Decor */}
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-50 rounded-full blur-[100px] -z-10 opacity-60"></div>
-      <div className="absolute top-40 left-0 w-[400px] h-[400px] bg-fuchsia-50 rounded-full blur-[100px] -z-10 opacity-60"></div>
+      {/* Spacer for the new Header integration */}
+      <div className="h-6" />
 
-      {/* --- HEADER --- */}
-      <div className="pt-6 pb-8 space-y-2">
-        <h1 className="text-4xl md:text-5xl font-black text-gray-900 tracking-tighter leading-none">
-            Settings.
-        </h1>
-        <p className="text-lg text-gray-500 font-medium">
-            Manage your profile and safety preferences.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-8">
+      <div className="space-y-12">
         
-        {/* 1. PROFILE CARD (With Edit Mode) */}
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-gray-100 relative overflow-hidden flex flex-col md:flex-row items-center md:items-start gap-8 transition-all">
-            
-            {/* Avatar */}
-            <div className="h-24 w-24 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-600 p-[3px] shadow-lg shrink-0">
-                <div className="w-full h-full rounded-full bg-white flex items-center justify-center overflow-hidden">
-                     {user?.photoURL ? (
-                         <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
-                     ) : (
-                         <span className="text-3xl font-black text-violet-600">
-                             {(profile?.username || user?.email || "U").charAt(0).toUpperCase()}
-                         </span>
-                     )}
-                </div>
+        {/* 1. IDENTITY & ACCOUNT */}
+        <section className="flex flex-col md:flex-row items-center gap-8 bg-slate-50 p-8 rounded-[2.5rem] border border-slate-100">
+            <div className="h-20 w-20 rounded-full bg-white overflow-hidden shrink-0 border border-gray-200 shadow-sm">
+                {user?.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center font-black text-violet-600 bg-violet-50">{editName.charAt(0)}</div>
+                )}
             </div>
             
-            <div className="flex-1 text-center md:text-left w-full">
+            <div className="flex-1 text-center md:text-left">
                 {isEditing ? (
-                    // --- EDIT MODE ---
-                    <div className="space-y-4 animate-fade-in">
-                        <div>
-                            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Display Name</label>
-                            <input 
-                                type="text" 
-                                value={editName}
-                                onChange={(e) => setEditName(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSaveProfile()}
-                                className="w-full md:w-2/3 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2 font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                            />
-                        </div>
-                        <div className="flex gap-2 justify-center md:justify-start">
-                            <button 
-                                onClick={handleSaveProfile}
-                                className="px-6 py-2 rounded-xl bg-gray-900 text-white text-sm font-bold shadow-md hover:bg-black transition-all"
-                            >
-                                Save Changes
-                            </button>
-                            <button 
-                                onClick={() => { setIsEditing(false); setEditName(profile?.username || ''); }}
-                                className="px-6 py-2 rounded-xl bg-white border border-gray-200 text-gray-500 text-sm font-bold hover:bg-gray-50 transition-all"
-                            >
-                                Cancel
-                            </button>
+                    <div className="flex flex-col md:flex-row gap-3">
+                        <input 
+                            type="text" 
+                            value={editName} 
+                            onChange={(e) => setEditName(e.target.value)}
+                            className="bg-white border border-gray-200 rounded-xl px-4 py-3 font-bold text-gray-900 outline-none focus:ring-2 focus:ring-violet-500"
+                        />
+                        <div className="flex gap-2 justify-center">
+                            <button onClick={() => { updateProfileData('username', editName); setIsEditing(false); }} className="px-6 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold">Save</button>
+                            <button onClick={() => setIsEditing(false)} className="px-6 py-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-500">Cancel</button>
                         </div>
                     </div>
                 ) : (
-                    // --- VIEW MODE ---
-                    <div className="animate-fade-in">
-                        <h2 className="text-2xl font-extrabold text-gray-900 mb-1">
-                            {profile?.username || "SafeSpoon User"}
-                        </h2>
-                        <p className="text-gray-400 font-medium mb-4">{user?.email}</p>
-                        <div className="flex flex-wrap justify-center md:justify-start gap-2">
-                            <span className="px-3 py-1 rounded-lg bg-gray-100 text-gray-600 text-xs font-bold uppercase tracking-wider">
-                                Free Plan
-                            </span>
-                            <span className="px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600 text-xs font-bold uppercase tracking-wider">
-                                Verified
-                            </span>
-                        </div>
+                    <div>
+                        <h2 className="text-2xl font-black text-gray-900 leading-tight">{profile?.username || "Authorized User"}</h2>
+                        <p className="text-gray-400 font-medium text-sm">{user?.email}</p>
+                        <button onClick={() => setIsEditing(true)} className="mt-3 text-xs font-bold text-violet-600 hover:text-violet-700 uppercase tracking-widest">Edit Account Identity</button>
                     </div>
                 )}
             </div>
+        </section>
 
-            {/* Edit Button (Only visible in View Mode) */}
-            {!isEditing && (
-                <button 
-                    onClick={() => setIsEditing(true)}
-                    className="px-6 py-2.5 rounded-full border border-gray-200 text-sm font-bold text-gray-600 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-sm"
-                >
-                    Edit Profile
-                </button>
-            )}
-        </div>
+        {/* 2. MEDICAL CONDITIONS (Improved UI for interactivity) */}
+        <section>
+            <div className="mb-6">
+                <h3 className="text-lg font-black text-gray-900">Medical Conditions</h3>
+                <p className="text-gray-400 text-xs font-medium">Selecting a condition applies automated high-priority ingredient filters.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {MEDICAL_CONDITIONS.map(condition => {
+                    const active = profile?.conditions?.includes(condition.label);
+                    return (
+                        <button 
+                            key={condition.id} 
+                            onClick={() => toggleItem(profile?.conditions, condition.label, 'conditions')} 
+                            className={`p-5 rounded-2xl border-2 text-left transition-all group ${
+                                active 
+                                ? 'border-violet-600 bg-violet-50 shadow-sm' 
+                                : 'border-gray-100 bg-white hover:border-gray-300'
+                            }`}
+                        >
+                            <div className="flex justify-between items-center mb-1">
+                                <span className={`font-bold transition-colors ${active ? 'text-violet-900' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                                    {condition.label}
+                                </span>
+                                <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                                    active ? 'bg-violet-600 border-violet-600' : 'border-gray-200'
+                                }`}>
+                                    {active && <div className="h-1.5 w-1.5 bg-white rounded-full" />}
+                                </div>
+                            </div>
+                            <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{condition.impact}</p>
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
 
-        {/* 2. RESTRICTIONS */}
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-gray-100">
-             <div className="mb-6">
-                <h3 className="text-xl font-bold text-gray-900">Dietary Restrictions</h3>
-                <p className="text-gray-400 text-sm mt-1">Select the ingredients you need to avoid.</p>
-             </div>
+        {/* 3. LIFESTYLE & FAITH DIETS */}
+        <section>
+            <div className="mb-6">
+                <h3 className="text-lg font-black text-gray-900">Lifestyle & Values</h3>
+                <p className="text-gray-400 text-xs font-medium">Standardized dietary protocols for personal or religious compliance.</p>
+            </div>
+            <div className="flex flex-wrap gap-3">
+                {LIFESTYLE_DIETS.map(diet => {
+                    const active = profile?.lifestyles?.includes(diet.label);
+                    return (
+                        <button 
+                            key={diet.id} 
+                            onClick={() => toggleItem(profile?.lifestyles, diet.label, 'lifestyles')}
+                            className={`px-8 py-4 rounded-2xl font-black text-sm transition-all border-2 ${
+                                active 
+                                ? 'bg-gray-900 text-white border-gray-900 shadow-lg' 
+                                : 'bg-white text-gray-400 border-gray-100 hover:border-gray-300'
+                            }`}
+                        >
+                            {diet.label}
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
 
-             <div className="flex flex-wrap gap-3">
-                 {DIETARY_OPTIONS.map((item) => {
-                     const isActive = profile?.restrictions?.includes(item);
-                     return (
-                         <button
-                            key={item}
-                            onClick={() => toggleRestriction(item)}
-                            className={`
-                                px-5 py-2.5 rounded-2xl text-sm font-bold transition-all duration-300 border flex items-center gap-2
-                                ${isActive 
-                                    ? 'bg-gray-900 text-white border-gray-900 shadow-md transform scale-105' 
-                                    : 'bg-white text-gray-500 border-gray-100 hover:border-gray-300 hover:text-gray-900'
-                                }
-                            `}
-                         >
-                            {isActive && <span className="text-emerald-400">✓</span>}
-                            {item}
-                         </button>
-                     );
-                 })}
-             </div>
-        </div>
+        {/* 4. ACTIVE INGREDIENT FILTERS */}
+        <section>
+            <div className="mb-6">
+                <h3 className="text-lg font-black text-gray-900">Active Filters</h3>
+                <p className="text-slate-500 text-xs font-medium">Ingredients removed from search results. Tap to toggle manually.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+                {INGREDIENT_LIST.map(ing => {
+                    const active = profile?.restrictions?.includes(ing);
+                    return (
+                        <button 
+                            key={ing} 
+                            onClick={() => toggleItem(profile?.restrictions, ing, 'restrictions')}
+                            className={`px-5 py-3 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border-2 ${
+                                active 
+                                ? 'bg-rose-500 text-white border-rose-500 shadow-md' 
+                                : 'bg-white text-gray-300 border-gray-100 hover:border-gray-400 hover:text-gray-500'
+                            }`}
+                        >
+                            {ing}
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
 
-        {/* 3. APP PREFERENCES */}
-        <div className="bg-white rounded-[2.5rem] p-8 shadow-[0_2px_15px_rgb(0,0,0,0.03)] border border-gray-100">
-             <h3 className="text-xl font-bold text-gray-900 mb-6">Preferences</h3>
-             
-             <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="font-bold text-gray-900">Strict Safety Mode</p>
-                        <p className="text-xs text-gray-400 mt-0.5">Hide restaurants with cross-contamination risks.</p>
-                    </div>
-                    <div className="w-12 h-7 bg-gray-200 rounded-full relative cursor-pointer hover:bg-gray-300 transition-colors">
-                        <div className="absolute left-1 top-1 w-5 h-5 bg-white rounded-full shadow-sm"></div>
-                    </div>
-                </div>
-                <div className="w-full h-px bg-gray-50"></div>
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="font-bold text-gray-900">Notifications</p>
-                        <p className="text-xs text-gray-400 mt-0.5">Alerts for new safe restaurants nearby.</p>
-                    </div>
-                    <div className="w-12 h-7 bg-violet-500 rounded-full relative cursor-pointer">
-                        <div className="absolute right-1 top-1 w-5 h-5 bg-white rounded-full shadow-sm"></div>
-                    </div>
-                </div>
-             </div>
-        </div>
-
-        {/* 4. DANGER ZONE */}
-        <div className="flex flex-col md:flex-row gap-4 pt-4">
-            <button 
-                onClick={handleLogout}
-                className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-900 font-bold py-4 rounded-2xl transition-all"
-            >
-                Log Out
-            </button>
-            <button className="flex-1 bg-white border border-rose-100 text-rose-500 hover:bg-rose-50 hover:border-rose-200 font-bold py-4 rounded-2xl transition-all">
-                Delete Account
-            </button>
-        </div>
-
-        <div className="text-center pt-8 pb-4">
-            <p className="text-xs font-bold text-gray-300 uppercase tracking-widest">SafeSpoon v1.2.0</p>
-        </div>
+        {/* 5. ACCOUNT ACTIONS */}
+        <section className="flex flex-col md:flex-row gap-4 pt-10 border-t border-gray-100">
+            <button onClick={() => signOut(auth)} className="flex-1 bg-white border border-gray-200 text-gray-900 font-bold py-4 rounded-2xl hover:bg-gray-50 transition-colors">Log Out</button>
+            <button onClick={() => setShowDeleteModal(true)} className="flex-1 bg-white border border-rose-100 text-rose-500 font-bold py-4 rounded-2xl hover:bg-rose-50 transition-colors">Terminate Account</button>
+        </section>
 
       </div>
+
+      {/* --- DELETE CONFIRMATION MODAL --- */}
+      {showDeleteModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-md animate-in fade-in duration-300">
+              <div className="bg-white rounded-[2.5rem] p-8 max-w-md w-full shadow-2xl animate-in zoom-in-95 duration-200">
+                  <h2 className="text-2xl font-black text-gray-900 tracking-tight mb-4">Are you sure?</h2>
+                  <p className="text-gray-500 font-medium leading-relaxed mb-8">
+                    Deleting your account is permanent. All of your personalized safety profiles, verified medical history, and saved locations will be erased from our systems immediately.
+                  </p>
+                  
+                  <div className="space-y-3">
+                      <button 
+                        onClick={handleDeleteAccount}
+                        className="w-full py-4 bg-rose-600 text-white rounded-2xl font-black hover:bg-rose-700 transition-colors shadow-lg shadow-rose-100"
+                      >
+                        Confirm Deletion
+                      </button>
+                      <button 
+                        onClick={() => setShowDeleteModal(false)}
+                        className="w-full py-4 bg-gray-100 text-gray-900 rounded-2xl font-black hover:bg-gray-200 transition-colors"
+                      >
+                        Keep My Account
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 };

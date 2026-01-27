@@ -1,18 +1,19 @@
 import React from 'react';
 
-export const Header = ({ userPhoto, onLogout, setView }) => {
+export const Header = ({ userPhoto, onLogout, setView, title = "Discover" }) => {
   return (
     <header className="h-20 bg-white/90 backdrop-blur-md border-b border-gray-100 px-6 md:px-8 flex items-center justify-between sticky top-0 z-50 transition-all duration-300">
       
-      {/* LEFT: Logo (Prominent Mobile Version) */}
+      {/* LEFT: Page Heading (Replaces Logo) */}
       <div className="flex-1 flex items-center">
-         <button 
-            onClick={() => setView('dashboard')}
-            className="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:opacity-80 transition-opacity"
-            style={{ fontFamily: '"Host Grotesk", sans-serif', letterSpacing: '-0.05em' }}
-        >
-            Safespoon
-        </button>
+         <div className="flex flex-col">
+            <h1 className="text-3xl font-black text-gray-900 tracking-tight leading-none mb-1">
+                {title}
+            </h1>
+            <p className="hidden md:block text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+                Safespoon Dashboard
+            </p>
+         </div>
       </div>
 
       {/* RIGHT: User Actions */}

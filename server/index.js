@@ -1,12 +1,15 @@
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
+require('dotenv').config();
 const serviceAccount = require('./serviceAccountKey.json');
 
-// 1. Initialize Firebase
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+// Initialize Firebase Admin
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
 
 const db = admin.firestore();
 const app = express();
@@ -14,17 +17,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- ROUTES ---
+// --- FIREBASE DATA ROUTES ---
 
-// 1. GET ALL FOODS (The Menu)
+// 1. GET ALL FOODS
 app.get('/api/foods', async (req, res) => {
   try {
     const snapshot = await db.collection('foods').get();
-    // Convert Firebase documents to a simple list
-    const foods = snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    }));
+    const foods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     res.json(foods);
   } catch (err) {
     console.error("Error fetching foods:", err);
@@ -32,24 +31,16 @@ app.get('/api/foods', async (req, res) => {
   }
 });
 
-// 2. GET USER LOG (What they ate today)
+// 2. GET USER LOG
 app.get('/api/log/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
-    
-    // Get today's date string (YYYY-MM-DD) to filter
     const today = new Date().toISOString().split('T')[0];
-
     const snapshot = await db.collection('logs')
       .where('userId', '==', userId)
       .where('date', '==', today)
       .get();
-
-    const logItems = snapshot.docs.map(doc => ({
-      log_id: doc.id,
-      ...doc.data()
-    }));
-
+    const logItems = snapshot.docs.map(doc => ({ log_id: doc.id, ...doc.data() }));
     res.json(logItems);
   } catch (err) {
     console.error("Error fetching log:", err);
@@ -61,23 +52,13 @@ app.get('/api/log/:userId', async (req, res) => {
 app.post('/api/log', async (req, res) => {
   try {
     const { userId, foodId, ...foodData } = req.body;
-    
-    // We save the WHOLE food object so we don't have to look it up later
-    // This makes NoSQL much faster
     const newLogItem = {
       userId,
       foodId,
-      date: new Date().toISOString().split('T')[0], // Save as "2024-01-18"
+      date: new Date().toISOString().split('T')[0],
       timestamp: admin.firestore.FieldValue.serverTimestamp(),
-      // Save food details directly in the log (Denormalization)
-      name: foodData.name || "Unknown Item",
-      cals: foodData.cals || 0,
-      protein: foodData.protein || 0,
-      carbs: foodData.carbs || 0,
-      fat: foodData.fat || 0,
-      brand: foodData.brand || ""
+      ...foodData
     };
-
     const docRef = await db.collection('logs').add(newLogItem);
     res.json({ success: true, logId: docRef.id });
   } catch (err) {
@@ -89,8 +70,7 @@ app.post('/api/log', async (req, res) => {
 // 4. DELETE FROM LOG
 app.delete('/api/log/:logId', async (req, res) => {
   try {
-    const { logId } = req.params;
-    await db.collection('logs').doc(logId).delete();
+    await db.collection('logs').doc(req.params.logId).delete();
     res.json({ success: true });
   } catch (err) {
     console.error("Error deleting log:", err);
@@ -98,7 +78,7 @@ app.delete('/api/log/:logId', async (req, res) => {
   }
 });
 
-const PORT = 5000;
+const PORT = 5001;
 app.listen(PORT, () => {
-  console.log(`🔥 Server running on port ${PORT} (Connected to Firestore)`);
+  console.log(`🔥 Server running on port ${PORT} (Firestore Connected)`);
 });

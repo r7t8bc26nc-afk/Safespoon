@@ -191,8 +191,7 @@ export const Recipes = ({ userProfile }) => {
     <div className="max-w-6xl mx-auto space-y-6 pb-24">
       {/* 1. Header (Downsized to text-2xl/3xl) */}
       <div className="pt-2">
-        <h1 className="text-2xl md:text-3xl font-black text-gray-900 tracking-tight">Recipes</h1>
-        <p className="text-gray-500 mt-1 font-medium text-sm md:text-base">Tasty meals for you to try</p>
+       
       </div>
 
       {/* 2. Search Bar (Moved ABOVE Categories) */}

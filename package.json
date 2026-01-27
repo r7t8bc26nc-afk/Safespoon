@@ -1,0 +1,14 @@
+{
+  "name": "safespoon-monorepo",
+  "version": "1.0.0",
+  "description": "Safespoon PWA Monorepo",
+  "main": "index.js",
+  "scripts": {
+    "server": "cd server && node index.js",
+    "client": "cd client && npm run dev",
+    "dev": "concurrently \"npm run server\" \"npm run client\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}
