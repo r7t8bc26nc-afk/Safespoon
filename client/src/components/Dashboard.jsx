@@ -3,7 +3,9 @@ import ReactDOM from 'react-dom';
 import { db } from '../firebase';
 import { collection, query, limit, where, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { motion, AnimatePresence } from 'framer-motion';
-import { useZxing } from "react-zxing"; 
+import { useZxing } from "react-zxing";
+// --- NEW IMPORT FOR SCANNER FIX ---
+import { BarcodeFormat, DecodeHintType } from "@zxing/library";
 
 // --- ICON IMPORTS ---
 import fireIcon from '../icons/fire.svg';
@@ -36,7 +38,7 @@ const ICONS = {
 const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
 const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7'; 
 
-// --- EXERCISE LOGIC DATABASE (MET Values) ---
+// --- EXERCISE DB ---
 const EXERCISE_DB = [
     { id: 'ex_run_fast', name: 'Running (Fast - 8mph)', met: 11.8 },
     { id: 'ex_run_mod', name: 'Running (Moderate - 6mph)', met: 9.8 },
@@ -158,6 +160,8 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
     );
 };
 
+// --- REFACTORED STAT CARD ---
+// Supports "Value / Max" display format
 const StatCard = ({ icon, colorText, colorBg, label, value, unit, max, progressColor, progressBg }) => {
     return (
         <div className="bg-white rounded-[1.5rem] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex flex-col justify-between h-36 relative overflow-hidden active:scale-98 transition-transform border border-slate-50">
@@ -170,8 +174,13 @@ const StatCard = ({ icon, colorText, colorBg, label, value, unit, max, progressC
                 )}
             </div>
             <div className="mt-1">
-                <span className="text-2xl font-black text-slate-900 tracking-tight">{value}</span>
-                <span className="text-xs font-bold text-slate-400 ml-0.5">{unit !== 'kcal' ? unit : ''}</span>
+                <div className="flex items-baseline">
+                    <span className="text-2xl font-black text-slate-900 tracking-tight">{value}</span>
+                    {max && (
+                        <span className="text-sm font-bold text-slate-300 ml-1">/ {max}</span>
+                    )}
+                </div>
+                {unit !== 'kcal' && <span className="text-xs font-bold text-slate-400 ml-0.5">{unit}</span>}
                 <p className="text-[11px] font-bold text-slate-400 mt-0.5 uppercase tracking-wide">{label}</p>
             </div>
             <div className="mt-auto pt-3">
@@ -200,17 +209,35 @@ const NutrientRow = ({ label, value, max, unit }) => (
     </div>
 );
 
+// --- UPDATED BARCODE SCANNER ---
+// Uses proper hints for Grocery Barcodes (UPC/EAN)
 const BarcodeScanner = ({ onResult, onClose }) => {
     const { ref } = useZxing({
         onDecodeResult(result) {
             if (navigator.vibrate) navigator.vibrate(200);
             onResult(result.getText());
         },
+        hints: new Map([
+            [
+                DecodeHintType.POSSIBLE_FORMATS,
+                [
+                    BarcodeFormat.UPC_A,
+                    BarcodeFormat.UPC_E,
+                    BarcodeFormat.EAN_13,
+                    BarcodeFormat.EAN_8
+                ],
+            ],
+        ]),
+        constraints: {
+            video: { facingMode: "environment" }
+        }
     });
 
     return (
         <div className="fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center">
-            <video ref={ref} className="w-full h-full object-cover opacity-80" />
+            {/* Removed opacity for better scanning performance */}
+            <video ref={ref} className="w-full h-full object-cover" />
+            
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                 <div className="w-72 h-48 border-2 border-white/50 rounded-3xl relative">
                     <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-lg"></div>
@@ -220,10 +247,12 @@ const BarcodeScanner = ({ onResult, onClose }) => {
                     <motion.div animate={{ top: ["10%", "90%", "10%"] }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }} className="absolute left-4 right-4 h-0.5 bg-red-500/80 blur-sm" />
                 </div>
             </div>
+            
             <div className="absolute top-16 left-0 right-0 text-center pointer-events-none px-6">
                 <p className="text-white font-black text-2xl shadow-black drop-shadow-md tracking-tight">Scan Barcode</p>
-                <p className="text-white/90 text-sm font-medium mt-2 leading-relaxed">Position the barcode line inside the frame.<br/>Hold steady to scan automatically.</p>
+                <p className="text-white/90 text-sm font-medium mt-2 leading-relaxed">Point camera at the barcode.<br/>Ensure good lighting.</p>
             </div>
+            
             <button onClick={onClose} className="absolute bottom-12 bg-white text-black px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-transform">Close Camera</button>
         </div>
     );
@@ -234,7 +263,8 @@ const ModalPortal = ({ children }) => {
     return ReactDOM.createPortal(children, document.body);
 };
 
-// --- SEARCH OVERLAY ---
+// --- REFACTORED SEARCH OVERLAY ---
+// Compact design for Mobile scaling
 const SearchOverlay = ({ 
     isSearching, setIsSearching, 
     searchQuery, setSearchQuery, 
@@ -255,14 +285,13 @@ const SearchOverlay = ({
         setSearchQuery(term);
     };
 
-    // Filter exercises based on query
     const exerciseResults = useMemo(() => {
         if (activeMode !== 'exercise' || searchQuery.length < 2) return [];
         const q = searchQuery.toLowerCase();
         return EXERCISE_DB.filter(ex => ex.name.toLowerCase().includes(q));
     }, [searchQuery, activeMode]);
 
-    const quickSuggestions = ["Egg", "Avocado", "Oats", "Chicken Breast", "Banana", "Rice", "Coffee"];
+    const quickSuggestions = ["Egg", "Avocado", "Oats", "Chicken", "Banana", "Rice", "Coffee"];
 
     return (
       <ModalPortal>
@@ -278,22 +307,22 @@ const SearchOverlay = ({
                     <BarcodeScanner onResult={handleScanResult} onClose={() => setIsScanning(false)} />
                 ) : (
                     <>
-                        <div className="pt-12 px-4 pb-0 bg-white">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Add {activeMode === 'food' ? 'Food' : 'Activity'}</h2>
+                        <div className="pt-12 px-4 pb-0 bg-white shadow-sm z-20">
+                            <div className="flex justify-between items-center mb-3">
+                                <h2 className="text-lg font-black text-slate-900 tracking-tight">Add {activeMode === 'food' ? 'Food' : 'Activity'}</h2>
                                 <button 
                                     onClick={() => { setIsSearching(false); setSearchQuery(''); }} 
-                                    className="w-9 h-9 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 font-bold active:bg-slate-200 transition-colors"
+                                    className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 font-bold active:bg-slate-200 transition-colors text-sm"
                                 >
                                     ✕
                                 </button>
                             </div>
 
-                            {/* SEGMENTED CONTROL: Food vs Exercise */}
-                            <div className="flex p-1 bg-slate-100 rounded-2xl mb-4 relative">
+                            {/* COMPACT SEGMENTED CONTROL */}
+                            <div className="flex p-1 bg-slate-100 rounded-xl mb-3 relative">
                                 <motion.div 
                                     layout
-                                    className="absolute top-1 bottom-1 bg-white rounded-xl shadow-sm z-0"
+                                    className="absolute top-1 bottom-1 bg-white rounded-[0.6rem] shadow-sm z-0"
                                     initial={false}
                                     animate={{ 
                                         left: activeMode === 'food' ? '4px' : '50%', 
@@ -303,38 +332,39 @@ const SearchOverlay = ({
                                 />
                                 <button 
                                     onClick={() => { setActiveMode('food'); setSearchQuery(''); }} 
-                                    className={`flex-1 relative z-10 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors ${activeMode === 'food' ? 'text-slate-900' : 'text-slate-400'}`}
+                                    className={`flex-1 relative z-10 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeMode === 'food' ? 'text-slate-900' : 'text-slate-400'}`}
                                 >
                                     Food
                                 </button>
                                 <button 
                                     onClick={() => { setActiveMode('exercise'); setSearchQuery(''); }} 
-                                    className={`flex-1 relative z-10 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors ${activeMode === 'exercise' ? 'text-slate-900' : 'text-slate-400'}`}
+                                    className={`flex-1 relative z-10 py-1.5 text-[10px] font-bold uppercase tracking-widest transition-colors ${activeMode === 'exercise' ? 'text-slate-900' : 'text-slate-400'}`}
                                 >
                                     Exercise
                                 </button>
                             </div>
 
-                            <div className="relative group mb-2">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-5 h-5" />
+                            {/* COMPACT INPUT FIELD */}
+                            <div className="relative group mb-3">
+                                <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
+                                    <ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-4 h-4" />
                                 </div>
                                 <input 
                                     autoFocus 
                                     type="search" 
-                                    placeholder={activeMode === 'food' ? "Search (e.g. Avocado, Pasta)..." : "Search (e.g. Running, Yoga)..."} 
+                                    placeholder={activeMode === 'food' ? "Search food..." : "Search workout..."} 
                                     value={searchQuery} 
                                     onChange={(e) => setSearchQuery(e.target.value)} 
-                                    className="w-full bg-slate-50 focus:bg-slate-100 border-none rounded-2xl py-4 pl-12 pr-12 font-medium text-lg text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal transition-all ring-0" 
+                                    className="w-full bg-slate-50 focus:bg-slate-100 border-none rounded-xl py-3 pl-10 pr-10 font-medium text-[15px] text-slate-900 outline-none placeholder:text-slate-400 placeholder:font-normal transition-all ring-0" 
                                 />
                                 
                                 {activeMode === 'food' && (
                                     <button 
                                         onClick={() => setIsScanning(true)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-2"
+                                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1.5"
                                         title="Scan Barcode"
                                     >
-                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                                         </svg>
                                     </button>
@@ -342,7 +372,7 @@ const SearchOverlay = ({
                             </div>
                         </div>
                         
-                        <div className="flex-1 overflow-y-auto px-4 py-4 no-scrollbar bg-white">
+                        <div className="flex-1 overflow-y-auto px-4 py-2 no-scrollbar bg-white">
                             {/* === EXERCISE RESULTS === */}
                             {activeMode === 'exercise' && (
                                 <div className="space-y-1">
@@ -351,22 +381,22 @@ const SearchOverlay = ({
                                             <motion.button 
                                                 key={ex.id}
                                                 onClick={() => onSelectExercise(ex)}
-                                                className="w-full flex items-center justify-between p-4 bg-slate-50/50 rounded-2xl active:scale-98 transition-transform border border-transparent hover:border-slate-100 text-left"
+                                                className="w-full flex items-center justify-between p-3 bg-slate-50/50 rounded-xl active:scale-98 transition-transform border border-transparent hover:border-slate-100 text-left"
                                             >
                                                 <div>
                                                     <h4 className="font-bold text-slate-900 text-sm">{ex.name}</h4>
                                                     <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide mt-0.5">MET: {ex.met}</p>
                                                 </div>
-                                                <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-300 font-light text-xl shadow-sm">+</div>
+                                                <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-slate-300 font-light text-lg shadow-sm">+</div>
                                             </motion.button>
                                         ))
                                     ) : searchQuery.length > 1 ? (
                                         <div className="text-center py-12 opacity-60">
-                                            <p className="text-slate-500 font-bold">No activity found.</p>
+                                            <p className="text-slate-500 font-bold text-sm">No activity found.</p>
                                         </div>
                                     ) : (
                                         <div className="text-center py-10 opacity-50">
-                                            <p className="text-sm font-bold text-slate-400">Type to find workouts...</p>
+                                            <p className="text-xs font-bold text-slate-400">Type to find workouts...</p>
                                         </div>
                                     )}
                                 </div>
@@ -376,40 +406,40 @@ const SearchOverlay = ({
                             {activeMode === 'food' && (
                                 <>
                                     {searchError && (
-                                        <div className="mb-4 p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-3">
+                                        <div className="mb-3 p-3 bg-red-50 border border-red-100 rounded-xl flex items-start gap-2">
                                             <div className="text-red-500 font-bold text-xs mt-0.5">⚠️</div>
                                             <div>
-                                                <p className="text-xs font-bold text-red-600 uppercase tracking-wide">Connection Error</p>
-                                                <p className="text-xs text-red-500 mt-1">{searchError}</p>
+                                                <p className="text-[10px] font-bold text-red-600 uppercase tracking-wide">Error</p>
+                                                <p className="text-xs text-red-500 leading-tight">{searchError}</p>
                                             </div>
                                         </div>
                                     )}
 
                                     {searchQuery.length === 0 && (
-                                        <div className="pt-2">
-                                            <div className="flex items-center gap-2 mb-4">
+                                        <div className="pt-1">
+                                            <div className="flex items-center gap-2 mb-3">
                                                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Quick Add</span>
                                             </div>
-                                            <div className="flex flex-wrap gap-2 mb-8">
+                                            <div className="flex flex-wrap gap-2 mb-6">
                                                 {quickSuggestions.map(term => (
-                                                    <button key={term} onClick={() => handleQuickAdd(term)} className="px-4 py-2 bg-white border border-slate-100 shadow-sm rounded-full text-sm font-medium text-slate-600 active:bg-slate-50 transition-all hover:border-slate-200">{term}</button>
+                                                    <button key={term} onClick={() => handleQuickAdd(term)} className="px-3 py-1.5 bg-white border border-slate-100 shadow-sm rounded-full text-xs font-medium text-slate-600 active:bg-slate-50 transition-all hover:border-slate-200">{term}</button>
                                                 ))}
                                             </div>
                                             {recentSearches.length > 0 && (
                                                 <>
-                                                    <div className="flex items-center gap-2 mb-4">
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recently Tracked</span>
+                                                    <div className="flex items-center gap-2 mb-3">
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Recent</span>
                                                     </div>
                                                     {recentSearches.map((res, idx) => (
-                                                        <motion.article key={`recent-${idx}`} onClick={() => onSelect(res)} className="flex items-center gap-3 p-3 mb-2 bg-slate-50/50 rounded-xl cursor-pointer active:scale-98 transition-transform border border-transparent hover:border-slate-100">
-                                                            <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 bg-white p-1 shadow-sm border border-slate-50">
+                                                        <motion.article key={`recent-${idx}`} onClick={() => onSelect(res)} className="flex items-center gap-3 p-2 mb-1.5 bg-slate-50/50 rounded-xl cursor-pointer active:scale-98 transition-transform border border-transparent hover:border-slate-100">
+                                                            <div className="h-9 w-9 rounded-lg overflow-hidden shrink-0 bg-white p-1 shadow-sm border border-slate-50">
                                                                 <img src={res.logo} alt="" className="w-full h-full object-contain" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/706/706164.png'} />
                                                             </div>
                                                             <div className="flex-1">
-                                                                <h4 className="font-bold text-slate-900 text-sm capitalize">{res.name}</h4>
-                                                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-wide">{res.brand}</p>
+                                                                <h4 className="font-bold text-slate-900 text-xs capitalize">{res.name}</h4>
+                                                                <p className="text-[9px] font-medium text-slate-400 uppercase tracking-wide">{res.brand}</p>
                                                             </div>
-                                                            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-300 font-light text-xl shadow-sm border border-slate-50">+</div>
+                                                            <div className="w-7 h-7 bg-white rounded-full flex items-center justify-center text-slate-300 font-light text-lg shadow-sm border border-slate-50">+</div>
                                                         </motion.article>
                                                     ))}
                                                 </>
@@ -421,33 +451,30 @@ const SearchOverlay = ({
                                         <section className="space-y-1 pb-20">
                                             {searchQuery.length < 3 ? (
                                                 <div className="text-center py-10 opacity-50">
-                                                    <p className="text-sm font-bold text-slate-400">Keep typing...</p>
-                                                    <p className="text-[10px] font-bold text-slate-300 mt-1 uppercase tracking-wide">Enter at least 3 characters</p>
+                                                    <p className="text-xs font-bold text-slate-400">Keep typing...</p>
                                                 </div>
                                             ) : (
                                                 <>
                                                     {suggestions.map((res, i) => (
-                                                        <motion.article key={res.fdcId || res.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} onClick={() => onSelect(res)} className="flex items-center gap-3 p-3 active:bg-slate-50 rounded-xl cursor-pointer transition-colors border-b border-slate-50 last:border-0">
-                                                            <div className="h-10 w-10 rounded-lg overflow-hidden shrink-0 bg-white p-1 border border-slate-100 shadow-sm">
+                                                        <motion.article key={res.fdcId || res.id} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} onClick={() => onSelect(res)} className="flex items-center gap-3 p-2.5 active:bg-slate-50 rounded-xl cursor-pointer transition-colors border-b border-slate-50 last:border-0">
+                                                            <div className="h-9 w-9 rounded-lg overflow-hidden shrink-0 bg-white p-1 border border-slate-100 shadow-sm">
                                                                 <img src={res.logo} alt="" className="w-full h-full object-contain" loading="lazy" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/706/706164.png'} />
                                                             </div>
                                                             <div className="flex-1">
-                                                                <h4 className="font-bold text-slate-900 text-sm capitalize">{res.name}</h4>
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{res.brand}</p>
+                                                                <h4 className="font-bold text-slate-900 text-xs capitalize">{res.name}</h4>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{res.brand}</p>
                                                             </div>
                                                         </motion.article>
                                                     ))}
                                                     {isApiLoading && (
-                                                        <div className="text-center py-8">
-                                                            <div className="inline-block w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-                                                            <p className="text-[10px] font-bold text-slate-400 mt-2">Searching Database...</p>
+                                                        <div className="text-center py-6">
+                                                            <div className="inline-block w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
                                                         </div>
                                                     )}
                                                     {!isApiLoading && suggestions.length === 0 && (
-                                                        <div className="text-center py-12 opacity-60">
-                                                            <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-300 text-2xl">?</div>
-                                                            <p className="text-slate-500 font-bold">No food found.</p>
-                                                            <p className="text-slate-400 text-xs mt-1">Try a simpler name or scan the barcode.</p>
+                                                        <div className="text-center py-10 opacity-60">
+                                                            <p className="text-slate-500 font-bold text-sm">No food found.</p>
+                                                            <p className="text-slate-400 text-[10px] mt-1">Try a simpler name or scan the barcode.</p>
                                                         </div>
                                                     )}
                                                 </>
@@ -482,8 +509,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
   const [offlineIntake, setOfflineIntake] = useState([]);
   const [searchError, setSearchError] = useState(null);
 
-  // New States for Exercise Logic
-  const [searchMode, setSearchMode] = useState('food'); // 'food' | 'exercise'
+  const [searchMode, setSearchMode] = useState('food'); 
   const [selectedExercise, setSelectedExercise] = useState(null);
   const [exerciseDuration, setExerciseDuration] = useState(30);
 
@@ -496,8 +522,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
 
   const dailyStats = useMemo(() => {
     let bmr = 1600;
-    // Base weight in kg for calculations
-    let weightKg = 70; // Fallback
+    let weightKg = 70; 
 
     if (profile?.weight && profile?.height && profile?.age && profile?.gender) {
         weightKg = parseFloat(profile.weight) * 0.453592;
@@ -512,25 +537,22 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
 
     const activityMultiplier = profile?.activityLevel || 1.375; 
     const tdee = Math.round(bmr * activityMultiplier);
-    // Base "Active" burn just from being awake/moving generally
     const baseActiveBurn = Math.round(tdee - bmr);
 
     const goals = {
         calories: tdee,
-        activeBurn: baseActiveBurn, // This will be added to explicitly logged exercise
+        activeBurnCurrent: 0, 
+        activeBurnGoal: 600, // Default Active Burn Goal
         protein: Math.round((tdee * 0.25) / 4), 
         carbs: Math.round((tdee * 0.45) / 4), 
         fat: Math.round((tdee * 0.30) / 9), 
         sugar: 36, fiber: 30, sodium: 2300, cholesterol: 300, satFat: 20
     };
 
-    // MERGE ALL DATA
     const serverIntake = profile?.dailyIntake || [];
     const serverActivity = profile?.dailyActivity || [];
-    const combinedIntake = [...serverIntake, ...offlineIntake]; // Note: Offline might mix food/activity if structure allows
+    const combinedIntake = [...serverIntake, ...offlineIntake]; 
     
-    // --- EXERCISE SUMMATION LOGIC ---
-    // Filter activities for selected date
     const selectedDateStr = selectedDate.toDateString();
     const todaysActivities = serverActivity.filter(act => {
         const d = new Date(act.timestamp);
@@ -538,20 +560,20 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
     });
 
     const totalExerciseBurn = todaysActivities.reduce((sum, act) => sum + (act.caloriesBurned || 0), 0);
-    const totalThermicEffect = 0; // Simplified for now, typically 10% of intake
+    
+    // "Active Burn" = Base lifestyle burn + Specific exercise
+    goals.activeBurnCurrent = baseActiveBurn + totalExerciseBurn;
 
-    // Total "Active Energy" displayed = (TDEE - BMR) + Explicit Exercises
-    goals.activeBurn = baseActiveBurn + totalExerciseBurn;
+    // Adjust Active Burn Goal if the user is very active
+    if (goals.activeBurnCurrent > goals.activeBurnGoal) {
+        goals.activeBurnGoal = Math.round(goals.activeBurnCurrent * 1.2); 
+    }
 
-    // --- FOOD SUMMATION LOGIC ---
     const meals = { Breakfast: [], Lunch: [], Dinner: [], Snacks: [] };
     
     const totals = combinedIntake.reduce((acc, item) => {
-        // Filter by date
         const itemDate = new Date(item.timestamp).toDateString();
         if (itemDate !== selectedDateStr) return acc;
-        
-        // Skip if this is an activity entry accidentally in intake array
         if (item.type === 'exercise') return acc; 
 
         const mealType = item.meal || 'Snacks';
@@ -571,7 +593,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
         };
     }, { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0, fiber: 0, sodium: 0, cholesterol: 0, satFat: 0 });
 
-    let currentStreak = 0; // (Keep existing streak logic)
+    let currentStreak = 0; 
     const todayStr = new Date().toDateString();
     if (combinedIntake.some(i => new Date(i.timestamp).toDateString() === todayStr)) currentStreak++;
     
@@ -638,7 +660,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
 
   const handleExerciseSelect = (exercise) => {
       setSelectedExercise(exercise);
-      setExerciseDuration(30); // Default 30 mins
+      setExerciseDuration(30); 
   };
 
   const saveExercise = async () => {
@@ -698,7 +720,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
       });
       setTrackingSuccess(true);
     } catch (e) { 
-        console.warn("Firebase Write Failed (Quota/Offline). Switching to Local Storage.", e);
+        console.warn("Offline fallback", e);
         const currentOffline = JSON.parse(localStorage.getItem('safespoon_offline_intake') || '[]');
         const updatedOffline = [...currentOffline, newLogEntry];
         localStorage.setItem('safespoon_offline_intake', JSON.stringify(updatedOffline));
@@ -714,14 +736,31 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
     }, 1500);
   };
 
-  // Re-include essential hooks for Food Search to work (copied from robust version)
   useEffect(() => {
     if (searchQuery.length < 3 || searchMode !== 'food') { 
         if (searchMode === 'food') setSuggestions([]); 
         return; 
     }
-    // ... (Keep existing safe search logic) ...
-    // For brevity in this response, assume the robust `performSearch` is here.
+    const timeoutId = setTimeout(async () => {
+        setIsApiLoading(true);
+        setSearchError(null);
+        try {
+            const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(searchQuery)}&pageSize=8&dataType=Branded,Foundation`);
+            const data = await res.json();
+            if (data.foods) {
+                setSuggestions(data.foods.map(f => ({
+                    id: f.fdcId,
+                    fdcId: f.fdcId,
+                    name: f.description,
+                    brand: f.brandOwner || (f.dataType === 'Foundation' ? 'Basic' : 'Generic'),
+                    logo: getLogoUrl(f.brandOwner),
+                    isExternal: true
+                })));
+            }
+        } catch (e) { setSearchError("Connection to USDA failed."); } 
+        finally { setIsApiLoading(false); }
+    }, 500);
+    return () => clearTimeout(timeoutId);
   }, [searchQuery, searchMode]);
 
 
@@ -737,7 +776,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
         onSelect={handleProductSelect} 
         recentSearches={recentSearches}
         searchError={searchError}
-        // NEW PROPS
         activeMode={searchMode}
         setActiveMode={setSearchMode}
         onSelectExercise={handleExerciseSelect}
@@ -765,7 +803,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
                             <p className="text-sm font-bold text-slate-400 mt-1">Intensity Level: {selectedExercise.met > 7 ? 'High' : 'Moderate'}</p>
                         </div>
 
-                        {/* Duration Slider/Input */}
                         <div className="bg-slate-50 rounded-2xl p-6 mb-8">
                             <div className="flex justify-between items-end mb-4">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Duration</span>
@@ -784,7 +821,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
                             </div>
                         </div>
 
-                        {/* Calculated Burn Preview */}
                         <div className="flex justify-between items-center mb-8 p-4 border border-slate-100 rounded-2xl">
                             <span className="text-xs font-bold text-slate-500">Est. Calories Burned</span>
                             <span className="text-xl font-black text-orange-500">
@@ -832,16 +868,18 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
       {/* --- GRID SYSTEM --- */}
       <div className="px-4 mb-6">
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <StatCard icon={ICONS.calories} colorText="text-purple-600" colorBg="bg-purple-100" label="Remaining" value={dailyStats.goals.calories - (dailyStats.totals.calories - dailyStats.goals.activeBurn)} unit="kcal" max={dailyStats.goals.calories} progressColor="bg-purple-500" progressBg="bg-purple-100" />
+            <StatCard icon={ICONS.calories} colorText="text-purple-600" colorBg="bg-purple-100" label="Remaining" value={dailyStats.goals.calories - (dailyStats.totals.calories - dailyStats.goals.activeBurnCurrent)} unit="kcal" max={dailyStats.goals.calories} progressColor="bg-purple-500" progressBg="bg-purple-100" />
             
-            {/* UPDATED ACTIVE BURN CARD with EXERCISE ICON */}
+            {/* UPDATED ACTIVE BURN CARD WITH PROGRESS BAR */}
             <StatCard 
                 icon={ICONS.exercise} 
                 colorText="text-lime-600" 
                 colorBg="bg-lime-100" 
                 label="Active Burn" 
-                value={dailyStats.goals.activeBurn} 
-                unit="kcal" 
+                value={dailyStats.goals.activeBurnCurrent} 
+                max={dailyStats.goals.activeBurnGoal} 
+                progressColor="bg-lime-500" 
+                progressBg="bg-lime-100" 
             />
             
             <StatCard icon={ICONS.protein} colorText="text-blue-600" colorBg="bg-blue-100" label="Protein" value={dailyStats.totals.protein} unit="g" max={dailyStats.goals.protein} progressColor="bg-blue-500" progressBg="bg-blue-100" />
@@ -912,14 +950,13 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
           })}
       </div>
 
-      {/* --- FOOD MODAL (Keep existing) --- */}
+      {/* --- FOOD MODAL --- */}
       <ModalPortal>
         <AnimatePresence>
             {selectedProduct && (
                 <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed inset-0 z-[11000] flex flex-col justify-end pointer-events-none">
                     <div className="absolute inset-0 bg-slate-900/10 backdrop-blur-[1px] pointer-events-auto transition-opacity" onClick={() => setSelectedProduct(null)} />
                     <div className="bg-white w-full rounded-t-[2rem] p-5 pb-8 pointer-events-auto h-[80vh] overflow-y-auto relative shadow-2xl">
-                       {/* ... Food Modal Content ... */}
                        <div className="w-10 h-1 bg-slate-100 rounded-full mx-auto mb-6" />
                         <div className="text-center mb-6">
                             <h2 className="text-xl font-black text-slate-900 leading-tight mb-2">{selectedProduct.fullName}</h2>
@@ -937,7 +974,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
                             {[{ label: 'Cal', val: selectedProduct.coreMetrics?.calories?.amount, unit: '' }, { label: 'Pro', val: selectedProduct.coreMetrics?.protein?.amount, unit: 'g' }, { label: 'Carb', val: selectedProduct.coreMetrics?.carbs?.amount, unit: 'g' }, { label: 'Fat', val: selectedProduct.coreMetrics?.fat?.amount, unit: 'g' }].map(m => (
                                 <div key={m.label} className="bg-slate-50 rounded-xl p-2 flex flex-col items-center justify-center aspect-square">
                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1 opacity-70">{m.label}</span>
-                                    <span className="text-lg font-black text-slate-900">{displayVal(m.val)}</span>
+                                    <span className="text-lg font-black text-slate-900">{m.val}</span>
                                     <span className="text-[9px] font-bold text-slate-400">{m.unit}</span>
                                 </div>
                             ))}

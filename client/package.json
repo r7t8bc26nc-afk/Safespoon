@@ -12,6 +12,7 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@phosphor-icons/react": "^2.0.15",
+    "@zxing/library": "^0.21.3",
     "csv-parser": "^3.2.0",
     "firebase": "^12.8.0",
     "firebase-admin": "^13.6.0",
