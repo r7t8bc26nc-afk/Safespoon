@@ -1,35 +1,107 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { db } from '../firebase';
-import { collection, getDocs, getDoc, setDoc, query, doc, updateDoc, arrayUnion } from "firebase/firestore";
+import { collection, query, limit, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { motion, AnimatePresence } from 'framer-motion';
 
+// --- ICON IMPORTS ---
+import fireIcon from '../icons/fire.svg';
+import dumbbellIcon from '../icons/dumbbell-filled.svg';
+import searchIcon from '../icons/search.svg';
+import breadIcon from '../icons/bread-slice.svg'; 
+import candyIcon from '../icons/candy.svg'; 
+import cheeseIcon from '../icons/cheese.svg'; 
+import steakIcon from '../icons/steak.svg'; 
+import eggIcon from '../icons/eggfried.svg';
+
+// --- CONFIGURATION ---
 const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
 const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7'; 
 
-const PARTNER_ADS = [
-  { id: 1, name: "Sweetgreen", domain: "sweetgreen.com", offer: "Get $5 off your first verified gluten-free bowl.", gradient: "from-gray-900 to-gray-800", buttonColor: "hover:bg-emerald-50 text-gray-900", image: "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?auto=format&fit=crop&w=600&q=80" },
-  { id: 2, name: "Chipotle", domain: "chipotle.com", offer: "Free Guac on your first allergen-safe order.", gradient: "from-red-900 to-orange-900", buttonColor: "hover:bg-orange-50 text-orange-900", image: "https://images.unsplash.com/photo-1626074353765-517a681e40be?auto=format&fit=crop&w=600&q=80" },
-  { id: 3, name: "Cava", domain: "cava.com", offer: "Double rewards points on Mediterranean greens.", gradient: "from-emerald-900 to-teal-900", buttonColor: "hover:bg-teal-50 text-teal-900", image: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80" }
-];
+// --- HELPER COMPONENTS ---
 
-const CATEGORIES = [
-  { id: 'Fast Food', label: 'Fast Food', icon: '🍔' },
-  { id: 'Healthy', label: 'Healthy', icon: '🥗' },
-  { id: 'Mexican', label: 'Mexican', icon: '🌮' },
-  { id: 'Pizza', label: 'Pizza', icon: '🍕' },
-  { id: 'Coffee', label: 'Coffee', icon: '☕' },
-  { id: 'Asian', label: 'Asian', icon: '🥢' },
-  { id: 'Burgers', label: 'Burgers', icon: '🍔' },
-  { id: 'Dessert', label: 'Dessert', icon: '🍰' },
-];
+const ColoredIcon = ({ src, colorClass, sizeClass = "w-6 h-6" }) => (
+  <div 
+    className={`${sizeClass} ${colorClass}`}
+    style={{
+      WebkitMaskImage: `url("${src}")`,
+      WebkitMaskSize: 'contain',
+      WebkitMaskRepeat: 'no-repeat',
+      WebkitMaskPosition: 'center',
+      maskImage: `url("${src}")`,
+      maskSize: 'contain',
+      maskRepeat: 'no-repeat',
+      maskPosition: 'center',
+      backgroundColor: 'currentColor'
+    }}
+  />
+);
 
-const getLogoUrl = (brand) => {
-    const domain = brand?.toLowerCase().split(',')[0].replace(/[^a-z0-9]/g, '') + '.com';
-    return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&size=100&format=png`;
+const ProgressBar = ({ current, max, colorClass, bgClass, height = "h-2" }) => {
+  const percent = Math.min(100, Math.max(0, (current / max) * 100));
+  return (
+    <div className={`w-full ${height} ${bgClass} rounded-full overflow-hidden`}>
+      <div 
+        className={`h-full ${colorClass} transition-all duration-700 ease-out rounded-full`} 
+        style={{ width: `${percent}%` }}
+      />
+    </div>
+  );
 };
 
-// Portal Component for Modals
+// --- COMPONENT: DATE STRIP ---
+const DateStrip = () => {
+    const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    const today = new Date().getDay(); 
+    
+    return (
+        <div className="flex justify-between items-center mb-8 px-1">
+            {days.map((d, i) => {
+                const isActive = i === today;
+                return (
+                    <div key={i} className="flex flex-col items-center gap-3">
+                        <span className="text-[10px] font-bold text-slate-400">{d}</span>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${isActive ? 'bg-slate-900 text-white shadow-xl shadow-slate-200 scale-110' : 'bg-white text-slate-300 border border-slate-100'}`}>
+                            {new Date(new Date().setDate(new Date().getDate() - (today - i))).getDate()}
+                        </div>
+                    </div>
+                )
+            })}
+        </div>
+    );
+};
+
+// --- COMPONENT: STAT CARD ---
+const StatCard = ({ icon, colorText, colorBg, label, value, unit, max, progressColor, progressBg }) => {
+    return (
+        <div className="bg-white rounded-[2rem] p-5 shadow-[0_4px_20px_rgba(0,0,0,0.03)] flex flex-col justify-between h-44 relative overflow-hidden group hover:shadow-[0_8px_30px_rgba(0,0,0,0.06)] transition-all duration-300 border border-slate-50">
+            <div className="flex justify-between items-start">
+                <div className={`w-10 h-10 rounded-full ${colorBg} ${colorText} flex items-center justify-center`}>
+                    <ColoredIcon src={icon} colorClass="bg-current" sizeClass="w-5 h-5" />
+                </div>
+                {unit === 'kcal' && (
+                     <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{unit}</span>
+                )}
+            </div>
+
+            <div className="mt-2">
+                <span className="text-3xl font-black text-slate-900 tracking-tight">{value}</span>
+                <span className="text-sm font-bold text-slate-400 ml-1">{unit !== 'kcal' ? unit : ''}</span>
+                <p className="text-xs font-bold text-slate-500 mt-1 uppercase tracking-wide">{label}</p>
+            </div>
+
+            <div className="mt-auto pt-4">
+                 {max && (
+                     <div className="flex items-center gap-2">
+                        <ProgressBar current={value} max={max} colorClass={progressColor} bgClass={progressBg} />
+                        <span className="text-[10px] font-bold text-slate-300">{Math.round((value/max)*100)}%</span>
+                     </div>
+                 )}
+            </div>
+        </div>
+    );
+};
+
 const ModalPortal = ({ children }) => {
     if (typeof document === 'undefined') return null;
     return ReactDOM.createPortal(children, document.body);
@@ -40,57 +112,77 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
       <ModalPortal>
         <AnimatePresence>
             {isSearching && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-white flex flex-col font-['Host_Grotesk']">
-                <div className="pt-8 px-4 pb-4 border-b border-gray-100 flex items-center gap-3">
-                    <div className="relative flex-1">
-                        {/* Search Icon Added */}
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+            <motion.div 
+                initial={{ opacity: 0 }} 
+                animate={{ opacity: 1 }} 
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[9999] bg-white flex flex-col font-['Switzer']"
+            >
+                {/* Search Header */}
+                <div className="pt-12 px-5 pb-4 flex items-center gap-3 bg-white border-b border-slate-50">
+                    <div className="relative flex-1 group">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
+                            <ColoredIcon src={searchIcon} colorClass="bg-current" sizeClass="w-5 h-5" />
                         </div>
-                        {/* Updated Placeholder Font Weight and Copy */}
                         <input 
                             autoFocus 
-                            type="text" 
-                            placeholder="Search brands, cravings, or items..." 
+                            type="search" 
+                            placeholder="Search (e.g. Avocado Toast)" 
                             value={searchQuery} 
                             onChange={(e) => setSearchQuery(e.target.value)} 
-                            className="w-full bg-gray-100 rounded-xl py-3.5 pl-12 pr-10 font-medium text-gray-900 outline-none placeholder:font-medium placeholder:text-gray-400" 
+                            className="w-full bg-slate-50 focus:bg-white border-none rounded-2xl py-4 pl-12 pr-10 font-bold text-lg text-slate-900 outline-none placeholder:text-slate-300 transition-all ring-0" 
                         />
-                        {isApiLoading && <div className="absolute right-3 top-1/2 -translate-y-1/2"><div className="w-4 h-4 border-2 border-violet-600 border-t-transparent rounded-full animate-spin"></div></div>}
+                        {isApiLoading && <div className="absolute right-4 top-1/2 -translate-y-1/2"><div className="w-5 h-5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div></div>}
                     </div>
-                    <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="text-gray-900 font-bold px-2">Cancel</button>
+                    <button 
+                        onClick={() => { setIsSearching(false); setSearchQuery(''); }} 
+                        className="w-12 h-12 flex items-center justify-center bg-slate-50 rounded-2xl text-slate-900 font-bold hover:bg-slate-100 transition-colors"
+                    >
+                        ✕
+                    </button>
                 </div>
                 
-                <div className="flex-1 overflow-y-auto px-4 no-scrollbar">
-                    {/* Recent Searches Section */}
+                {/* Results List */}
+                <div className="flex-1 overflow-y-auto px-5 py-6 no-scrollbar bg-white">
                     {searchQuery.length === 0 && recentSearches.length > 0 && (
-                        <div className="mb-6">
-                            <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-6 mb-2">Recent</h3>
+                        <section className="mb-8">
+                            <h3 className="text-xs font-black text-slate-300 uppercase tracking-widest mb-4">Recent</h3>
                             {recentSearches.map((res, idx) => (
-                                <div key={`recent-${idx}`} onClick={() => onSelect(res)} className="flex items-center gap-4 py-4 hover:bg-slate-50 cursor-pointer border-b border-gray-50/50">
-                                    <div className="h-10 w-10 rounded-full border border-gray-100 overflow-hidden shrink-0 opacity-60">
-                                        <img src={res.logo} alt="" className="w-full h-full object-contain p-1" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/5223/5223755.png'} />
+                                <motion.article 
+                                    key={`recent-${idx}`} 
+                                    onClick={() => onSelect(res)} 
+                                    className="flex items-center gap-4 p-4 mb-2 bg-slate-50 rounded-2xl cursor-pointer hover:bg-slate-100 transition-colors"
+                                >
+                                    <div className="h-10 w-10 rounded-xl overflow-hidden shrink-0 bg-white p-1">
+                                        <img src={res.logo} alt="" className="w-full h-full object-contain" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/706/706164.png'} />
                                     </div>
                                     <div className="flex-1">
-                                        <h4 className="font-bold text-gray-900 text-sm">{res.name}</h4>
+                                        <h4 className="font-bold text-slate-900 text-sm capitalize">{res.name}</h4>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{res.brand}</p>
                                     </div>
-                                    <div className="text-gray-300"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg></div>
-                                </div>
+                                    <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-300 font-light text-xl">+</div>
+                                </motion.article>
                             ))}
-                        </div>
+                        </section>
                     )}
 
-                    {suggestions.map((res) => (
-                        <div key={res.fdcId || res.id} onClick={() => onSelect(res)} className="flex items-center gap-4 py-5 hover:bg-slate-50 cursor-pointer border-b border-gray-50">
-                        <div className="h-12 w-12 rounded-full border border-gray-100 overflow-hidden shrink-0">
-                            <img src={res.logo} alt="" className="w-full h-full object-contain p-1" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/5223/5223755.png'} />
-                        </div>
-                        <div className="flex-1">
-                            <h4 className="font-black text-gray-900 truncate max-w-[240px] leading-tight text-xs uppercase">{res.name}</h4>
-                            <p className="text-[9px] font-bold text-violet-600 uppercase tracking-widest mt-0.5">{res.brand}</p>
-                        </div>
-                        </div>
-                    ))}
+                    <section className="space-y-2 pb-20">
+                        {suggestions.map((res, i) => (
+                            <motion.article 
+                                key={res.fdcId || res.id} 
+                                onClick={() => onSelect(res)} 
+                                className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl cursor-pointer transition-colors border-b border-slate-50 last:border-0"
+                            >
+                                <div className="h-10 w-10 rounded-xl overflow-hidden shrink-0 bg-white p-1 border border-slate-100">
+                                    <img src={res.logo} alt="" className="w-full h-full object-contain" loading="lazy" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/706/706164.png'} />
+                                </div>
+                                <div className="flex-1">
+                                    <h4 className="font-bold text-slate-900 text-sm capitalize">{res.name}</h4>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">{res.brand}</p>
+                                </div>
+                            </motion.article>
+                        ))}
+                    </section>
                 </div>
             </motion.div>
             )}
@@ -99,300 +191,430 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
     );
 };
 
-const Dashboard = ({ setView, profile, onOpenMenu, setIsSearching, isSearching, setDashboardLocation }) => {
-  const [allRestaurants, setAllRestaurants] = useState([]);
-  const [featured, setFeatured] = useState([]);
-  const [categoryResults, setCategoryResults] = useState([]); 
-  const [loading, setLoading] = useState(true);
-  const [activeCategory, setActiveCategory] = useState(null);
-  const [currentAdIndex, setCurrentAdIndex] = useState(0);
+// --- ICONS MAPPING ---
+const ICONS = {
+    calories: fireIcon,
+    protein: dumbbellIcon,
+    carbs: breadIcon,
+    fat: cheeseIcon,
+    search: searchIcon,
+    breakfast: eggIcon,
+    lunch: breadIcon,
+    dinner: steakIcon,
+    snacks: candyIcon
+};
+
+const getLogoUrl = (brand) => {
+    if (!brand || brand === 'Generic' || brand === 'Foundation') return 'https://cdn-icons-png.flaticon.com/512/706/706164.png';
+    const domain = brand.toLowerCase().split(' ')[0].replace(/[^a-z0-9]/g, '') + '.com';
+    return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&size=100&format=png`;
+};
+
+const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation }) => {
   const [locationName, setLocationName] = useState('Locating...');
   const [locationLoading, setLocationLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
-  const [recentSearches, setRecentSearches] = useState([]); // New State for History
+  const [recentSearches, setRecentSearches] = useState([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
-  const [nutrientLoading, setNutrientLoading] = useState(false);
-  const [showPaywall, setShowPaywall] = useState(false);
+  const [trackingSuccess, setTrackingSuccess] = useState(false);
+  const [portionSize, setPortionSize] = useState(1.0);
+  const [selectedMeal, setSelectedMeal] = useState('Breakfast');
 
-  useEffect(() => {
-    // Load Recent Searches on Mount
-    const saved = localStorage.getItem('phlynt_recent_searches');
-    if (saved) setRecentSearches(JSON.parse(saved));
+  // --- DYNAMIC GOALS ---
+  const dailyStats = useMemo(() => {
+    let bmr = 2000;
+    if (profile?.weight && profile?.height && profile?.age && profile?.gender) {
+        const weightKg = parseFloat(profile.weight) * 0.453592;
+        const heightCm = parseFloat(profile.height) * 2.54;
+        const age = parseFloat(profile.age);
+        if (profile.gender === 'male') {
+            bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) + 5;
+        } else {
+            bmr = (10 * weightKg) + (6.25 * heightCm) - (5 * age) - 161;
+        }
+        bmr *= 1.55; 
+    }
 
-    handleLocationClick();
-    const fetchRes = async () => {
-      try {
-        const snapshot = await getDocs(query(collection(db, "restaurants")));
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data(), distance: (Math.random() * 5 + 0.5).toFixed(1) }));
-        setAllRestaurants(data);
-        setFeatured(data.slice(0, 4)); 
-      } catch (err) { console.error(err); } finally { setLoading(false); }
+    const tdee = Math.round(bmr);
+    const goals = {
+        calories: tdee,
+        protein: Math.round((tdee * 0.25) / 4), 
+        carbs: Math.round((tdee * 0.45) / 4), 
+        fat: Math.round((tdee * 0.30) / 9), 
     };
-    fetchRes();
-    const interval = setInterval(() => setCurrentAdIndex(prev => prev === PARTNER_ADS.length - 1 ? 0 : prev + 1), 6000);
-    return () => clearInterval(interval);
+
+    const intake = profile?.dailyIntake || [];
+    const meals = { Breakfast: [], Lunch: [], Dinner: [], Snacks: [] };
+    
+    const totals = intake.reduce((acc, item) => {
+        const mealType = item.meal || 'Snacks';
+        if (meals[mealType]) meals[mealType].push(item);
+        else meals.Snacks.push(item);
+
+        return {
+            calories: acc.calories + (item.calories?.amount || 0),
+            protein: acc.protein + (item.protein?.amount || 0),
+            carbs: acc.carbs + (item.carbs?.amount || 0),
+            fat: acc.fat + (item.fat?.amount || 0),
+        };
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+
+    return { totals, goals, meals };
+  }, [profile]);
+
+  // --- EFFECTS ---
+  useEffect(() => {
+    const saved = localStorage.getItem('safespoon_recent_searches');
+    if (saved) { try { setRecentSearches(JSON.parse(saved)); } catch (e) { setRecentSearches([]); } }
+    handleLocationClick();
   }, []);
 
   const handleLocationClick = () => {
     setLocationLoading(true);
-    if (!navigator.geolocation) { setLocationName("Set Location"); setLocationLoading(false); return; }
+    if (!navigator.geolocation) { setLocationName("Select Location"); setLocationLoading(false); return; }
     navigator.geolocation.getCurrentPosition(async (pos) => {
       try {
         const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${pos.coords.latitude}&longitude=${pos.coords.longitude}&localityLanguage=en`);
         const data = await res.json();
         setLocationName(`${data.city || "Unknown"}, ${data.principalSubdivisionCode?.split('-').pop() || ""}`);
-      } catch (e) { setLocationName("Set Location"); }
+      } catch (e) { setLocationName("Select Location"); }
       finally { setLocationLoading(false); }
-    }, () => { setLocationName("Set Location"); setLocationLoading(false); });
+    }, () => { setLocationName("Select Location"); setLocationLoading(false); });
   };
 
   useEffect(() => {
     if (setDashboardLocation) {
         setDashboardLocation(
-          <div onClick={handleLocationClick} className="flex items-center gap-1 opacity-80 cursor-pointer active:scale-95">
-            <svg className={`w-3.5 h-3.5 text-violet-600 ${locationLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /></svg>
-            <span className="text-[10px] font-bold text-gray-400">{locationLoading ? "..." : locationName}</span>
-          </div>
+          <button onClick={handleLocationClick} className="flex items-center gap-1 opacity-80 cursor-pointer active:scale-95 bg-transparent border-none p-0">
+            <div className="text-slate-900">
+                <ColoredIcon src={searchIcon} colorClass="bg-slate-900" sizeClass="w-3.5 h-3.5 opacity-0" />
+            </div>
+            <span className="text-[10px] font-bold text-slate-500 font-['Switzer']">{locationLoading ? "..." : locationName}</span>
+          </button>
         );
     }
   }, [locationName, locationLoading]);
 
-  // USDA Search Logic
+  // --- SEARCH LOGIC ---
   useEffect(() => {
     if (searchQuery.length < 3) { setSuggestions([]); return; }
+    
     const fetchUSDASuggestions = async () => {
       setIsApiLoading(true);
       try {
-        const response = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(searchQuery)}&pageSize=30&dataType=Branded&api_key=${USDA_API_KEY}`);
-        const data = await response.json();
+        const safeQuery = encodeURIComponent(searchQuery);
+        const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${safeQuery}&pageSize=25&dataType=Survey%20(FNDDS),SR%20Legacy&api_key=${USDA_API_KEY}`;
         
-        const seen = new Set();
-        const apiResults = (data.foods || []).filter(f => {
-          const key = `${f.brandOwner}-${f.description}`.toLowerCase();
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
-        }).map(f => ({
-          id: f.fdcId, fdcId: f.fdcId, 
-          name: f.description, 
-          brand: f.brandOwner || 'Generic',
-          logo: getLogoUrl(f.brandOwner), 
-          isExternal: true
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('API Response Error');
+        
+        const data = await response.json();
+        const apiResults = (data.foods || []).map(f => ({
+          id: f.fdcId, fdcId: f.fdcId, name: f.description, brand: f.brandOwner || 'Generic', logo: getLogoUrl(f.brandOwner), isExternal: true
         }));
-
-        const local = allRestaurants.filter(r => r.name.toLowerCase().includes(searchQuery.toLowerCase()));
-        setSuggestions([...local, ...apiResults]);
-      } catch (err) { console.error(err); } finally { setIsApiLoading(false); }
+        setSuggestions(apiResults);
+      } catch (err) { 
+          console.error("USDA Search Error:", err); 
+      } finally { 
+          setIsApiLoading(false); 
+      }
     };
+
     const debounce = setTimeout(fetchUSDASuggestions, 500);
     return () => clearTimeout(debounce);
-  }, [searchQuery, allRestaurants]);
-
-  const addToHistory = (item) => {
-    const newHistory = [item, ...recentSearches.filter(i => i.id !== item.id)].slice(0, 3);
-    setRecentSearches(newHistory);
-    localStorage.setItem('phlynt_recent_searches', JSON.stringify(newHistory));
-  };
-
-  const highlightAllergens = (text) => {
-    if (!text || !profile?.allergens) return text;
-    const regex = new RegExp(`(${profile.allergens.join('|')})`, 'gi');
-    const parts = text.split(regex);
-    return parts.map((part, i) => regex.test(part) ? <span key={i} className="text-rose-600 font-black underline decoration-2">{part}</span> : part);
-  };
+  }, [searchQuery]);
 
   const handleProductSelect = async (product) => {
-    // FIX: Do NOT set isSearching(false) here. 
-    // This keeps the search overlay open behind the modal so "Back" works.
-    addToHistory(product);
-    
+    setRecentSearches(prev => [product, ...prev.filter(i => i.id !== product.id)].slice(0, 10));
+    setTrackingSuccess(false);
+    setPortionSize(1.0);
+    setSelectedMeal('Breakfast');
+
+    const safeProduct = {
+        ...product,
+        fullName: product.fullName || product.name,
+        logo: product.logo || getLogoUrl(product.brand),
+        coreMetrics: {
+            calories: { amount: 0 }, sugar: { amount: 0 }, protein: { amount: 0 }, sodium: { amount: 0 }, cholesterol: { amount: 0 }, carbs: { amount: 0 }, fat: { amount: 0 },
+            fiber: { amount: 0 }, satFat: { amount: 0 }
+        },
+        ingredients: "Ingredients unavailable."
+    };
+
     if (!product.isExternal) {
-        setIsSearching(false); // Close search for Restaurants (they have their own view)
-        onOpenMenu({ id: product.id, name: product.name, category: product.category || 'Restaurant', rating: product.rating || "New" });
+        setIsSearching(false);
+        setSelectedProduct(safeProduct);
         return;
     }
 
-    setNutrientLoading(true);
-    setSelectedProduct(product);
+    setSelectedProduct(safeProduct); 
 
     try {
         const cacheRef = doc(db, "product_cache", String(product.fdcId));
         const cacheSnap = await getDoc(cacheRef);
-
         if (cacheSnap.exists()) {
-            setSelectedProduct({ ...product, ...cacheSnap.data() });
-            setNutrientLoading(false);
+            setSelectedProduct({ ...safeProduct, ...cacheSnap.data() });
             return;
         }
 
         const response = await fetch(`https://api.nal.usda.gov/fdc/v1/food/${product.fdcId}?api_key=${USDA_API_KEY}`);
         const data = await response.json();
-        
-        const isLiquid = data.servingSizeUnit?.toLowerCase() === 'ml';
         const rawSize = data.servingSize || 100;
-        const servingLabel = isLiquid ? `${(rawSize / 29.5735).toFixed(1)} fl oz` : `${rawSize}${data.servingSizeUnit || 'g'}`;
         const multiplier = rawSize / 100;
 
-        const findN = (keywords) => {
+        const getNut = (ids) => {
             if (!data.foodNutrients) return { amount: 0, dv: 0 };
-            const n = data.foodNutrients.find(nut => keywords.some(k => nut.nutrient.name.toLowerCase().includes(k.toLowerCase())));
-            const amount = Math.round((n?.amount || 0) * multiplier);
-            const base = keywords.includes('Sodium') ? 2300 : keywords.includes('Sugar') ? 50 : 78;
-            return { amount, dv: Math.round((amount / base) * 100) };
+            const n = data.foodNutrients.find(nut => ids.includes(String(nut.nutrient.number)));
+            const amount = Math.round((n?.amount || 0) * multiplier * 10) / 10;
+            return { amount, dv: 0 }; 
         };
 
         const details = {
-            servingLabel,
-            fullName: `${data.brandOwner ? data.brandOwner + ' ' : ''}${data.description}`,
+            servingLabel: `${rawSize}${data.servingSizeUnit || 'g'}`,
+            fullName: data.description,
             coreMetrics: {
-                calories: findN(['Energy', 'Energy (kcal)']),
-                sodium: findN(['Sodium', 'Na']),
-                sugar: findN(['Sugars, total', 'Total Sugars']),
-                fat: findN(['Total lipid (fat)', 'Fat, total']),
-                protein: findN(['Protein']),
-                carbs: findN(['Carbohydrate', 'Carbohydrate, by difference'])
+                calories: getNut(['208', '1008']), 
+                protein: getNut(['203', '1003']),
+                fat: getNut(['204', '1004']),
+                carbs: getNut(['205', '1005']),
+                sugar: getNut(['269', '2000']),
+                fiber: getNut(['291', '1079']),
+                sodium: getNut(['307', '1093']),
+                cholesterol: getNut(['601', '1253']),
+                satFat: getNut(['606', '1258']),
             },
             ingredients: data.ingredients || "Ingredient data unavailable."
         };
 
         await setDoc(cacheRef, details);
         setSelectedProduct(prev => ({ ...prev, ...details }));
-    } catch (err) { setSelectedProduct(null); } finally { setNutrientLoading(false); }
+    } catch (err) { console.error(err); }
   };
 
   const handleAddToIntake = async () => {
-    if (!profile?.isPremium) { setShowPaywall(true); return; }
+    if (!profile || !profile.uid) { alert("User profile missing."); return; }
+
+    const base = selectedProduct.coreMetrics;
+    const trackedMetrics = {};
+    Object.keys(base).forEach(key => {
+        const val = base[key]?.amount;
+        trackedMetrics[key] = { amount: typeof val === 'number' ? Math.round(val * portionSize) : 0 };
+    });
+
     try {
       await updateDoc(doc(db, "users", profile.uid), {
-        dailyIntake: arrayUnion({ ...selectedProduct.coreMetrics, name: selectedProduct.fullName, timestamp: new Date().toISOString() })
+        dailyIntake: arrayUnion({ 
+            ...trackedMetrics, 
+            name: selectedProduct.fullName || "Unknown Food",
+            brand: selectedProduct.brand || "Generic",
+            portion: Number(portionSize) || 1,
+            meal: selectedMeal, 
+            timestamp: new Date().toISOString() 
+        })
       });
-      setSelectedProduct(null);
-    } catch (e) { console.error(e); }
+      setTrackingSuccess(true);
+      setTimeout(() => {
+          setSelectedProduct(null);
+          setTrackingSuccess(false);
+          setPortionSize(1.0);
+          setIsSearching(false);
+      }, 1500);
+    } catch (e) { console.error("Firestore Error:", e); alert("Failed to save."); }
   };
 
+  const displayVal = (val) => Math.round((val || 0) * portionSize);
+  
+  const caloriesBurned = 450; // Mocked burned calories
+  const netCalories = dailyStats.totals.calories - caloriesBurned;
+  const remaining = dailyStats.goals.calories - netCalories;
+
   return (
-    <div className="w-full space-y-8 pb-12 font-['Host_Grotesk']">
+    <main className="w-full pb-28 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
       <SearchOverlay isSearching={isSearching} setIsSearching={setIsSearching} searchQuery={searchQuery} setSearchQuery={setSearchQuery} isApiLoading={isApiLoading} suggestions={suggestions} onSelect={handleProductSelect} recentSearches={recentSearches} />
       
-      <ModalPortal>
-        <AnimatePresence>
-            {showPaywall && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[12000] bg-slate-900/90 backdrop-blur-xl flex items-center justify-center p-6" onClick={() => setShowPaywall(false)}>
-                <div className="bg-white rounded-[3rem] p-10 w-full max-w-md text-center" onClick={e => e.stopPropagation()}>
-                    <div className="text-4xl mb-4">👑</div>
-                    <h3 className="text-2xl font-black text-slate-900 mb-2">Phlynt Pro</h3>
-                    <p className="text-sm font-medium text-slate-500 mb-8 leading-relaxed">Unlock daily intake tracking and automated health goal analysis with a premium subscription.</p>
-                    <button className="w-full py-4 bg-violet-600 text-white rounded-2xl font-black shadow-xl mb-3">Upgrade for Tracking</button>
-                </div>
-            </motion.div>
-            )}
-        </AnimatePresence>
-      </ModalPortal>
+      {/* --- HEADER --- */}
+      <div className="pt-8 pb-2 px-6">
+          <div className="flex justify-between items-center mb-1">
+             <h1 className="text-3xl font-black tracking-tight text-slate-900">Today's Goals</h1>
+             <motion.button 
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setIsSearching(true)}
+                className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg active:bg-slate-800 transition-all"
+             >
+                <span className="text-2xl font-light mb-1">+</span>
+             </motion.button>
+          </div>
+          <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-6">Overview</p>
+          <DateStrip />
+      </div>
 
+      {/* --- GRID SYSTEM (Clean Card UI) --- */}
+      <div className="px-6 grid grid-cols-2 gap-4 mb-8">
+          {/* Card 1: Calories Remaining */}
+          <StatCard 
+            icon={ICONS.calories} 
+            colorText="text-purple-600" 
+            colorBg="bg-purple-100" 
+            label="Calories Left" 
+            value={remaining} 
+            unit="kcal"
+            max={dailyStats.goals.calories}
+            progressColor="bg-purple-500"
+            progressBg="bg-purple-100"
+          />
+
+          {/* Card 2: Burned */}
+          <StatCard 
+            icon={ICONS.calories} 
+            colorText="text-lime-600" 
+            colorBg="bg-lime-100" 
+            label="Burned" 
+            value={caloriesBurned} 
+            unit="kcal"
+          />
+
+          {/* Card 3: Protein */}
+          <StatCard 
+            icon={ICONS.protein} 
+            colorText="text-blue-600" 
+            colorBg="bg-blue-100" 
+            label="Protein" 
+            value={dailyStats.totals.protein} 
+            unit="g"
+            max={dailyStats.goals.protein}
+            progressColor="bg-blue-500"
+            progressBg="bg-blue-100"
+          />
+
+           {/* Card 4: Carbs */}
+           <StatCard 
+            icon={ICONS.carbs} 
+            colorText="text-orange-600" 
+            colorBg="bg-orange-100" 
+            label="Carbs" 
+            value={dailyStats.totals.carbs} 
+            unit="g"
+            max={dailyStats.goals.carbs}
+            progressColor="bg-orange-500"
+            progressBg="bg-orange-100"
+          />
+      </div>
+
+      {/* --- MEAL LIST --- */}
+      <div className="px-6 space-y-6">
+          {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map((meal) => {
+              const items = dailyStats.meals[meal];
+              const cals = items.reduce((s, i) => s + (i.calories?.amount || 0), 0);
+              
+              return (
+                  <section key={meal} className="bg-white rounded-[1.5rem] p-1 shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-slate-50">
+                      <div className="flex justify-between items-center p-4 pb-2">
+                           <div className="flex items-center gap-3">
+                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${items.length > 0 ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-400'}`}>
+                                    <ColoredIcon src={ICONS[meal.toLowerCase()]} colorClass="bg-current" sizeClass="w-4 h-4" />
+                                </div>
+                                <h3 className="text-base font-black text-slate-900">{meal}</h3>
+                           </div>
+                          <span className="text-xs font-bold text-slate-400">{cals} kcal</span>
+                      </div>
+                      
+                      {items.length > 0 ? (
+                          <div className="space-y-1 p-2">
+                              {items.map((item, i) => (
+                                  <div key={i} className="flex items-center justify-between p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer group">
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs">{item.name.charAt(0)}</div>
+                                          <div>
+                                              <p className="font-bold text-sm text-slate-900 leading-tight">{item.name}</p>
+                                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{item.brand}</p>
+                                          </div>
+                                      </div>
+                                      <span className="font-black text-xs text-slate-900">{item.calories?.amount}</span>
+                                  </div>
+                              ))}
+                              <button onClick={() => { setIsSearching(true); setSelectedMeal(meal); }} className="w-full py-3 text-[10px] font-black text-slate-300 uppercase tracking-widest hover:text-slate-500 transition-colors">
+                                  + Add Food
+                              </button>
+                          </div>
+                      ) : (
+                          <div className="p-4 pt-0">
+                             <button 
+                                onClick={() => { setIsSearching(true); setSelectedMeal(meal); }}
+                                className="w-full py-4 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-bold text-slate-400 uppercase tracking-widest hover:border-slate-200 hover:text-slate-500 transition-all hover:bg-slate-50"
+                            >
+                                Empty - Tap to Track
+                            </button>
+                          </div>
+                      )}
+                  </section>
+              );
+          })}
+      </div>
+
+      {/* --- MODAL (Clean) --- */}
       <ModalPortal>
         <AnimatePresence>
             {selectedProduct && (
-            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25 }} className="fixed inset-0 z-[11000] bg-white flex flex-col overflow-hidden px-4 md:px-8">
-                <div className="py-6 flex items-center justify-between shrink-0">
-                <button onClick={() => setSelectedProduct(null)} className="h-12 w-12 flex items-center justify-center bg-slate-50 rounded-full active:scale-95 transition-transform"><svg className="w-5 h-5 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path d="M15 19l-7-7 7-7"/></svg></button>
-                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Nutritional Facts</span>
-                <div className="w-12" />
-                </div>
-                <div className="flex-1 overflow-y-auto pb-12 no-scrollbar">
-                <div className="flex flex-col items-center mb-8 px-6 text-center">
-                    <div className="h-40 w-40 bg-slate-50 rounded-full flex items-center justify-center mb-6 p-4">
-                        <img src={selectedProduct.logo} className="h-full w-full object-contain" alt="" onError={e => e.target.src = 'https://cdn-icons-png.flaticon.com/512/5223/5223755.png'} />
-                    </div>
-                    <h2 className="text-xl font-black tracking-tight text-slate-900 leading-tight uppercase">{selectedProduct.fullName || selectedProduct.name}</h2>
-                    <div className="flex items-center gap-2 mt-3">
-                        <span className="text-[10px] font-black text-violet-600 uppercase tracking-widest bg-violet-50 px-3 py-1.5 rounded-full border border-violet-100">Serving: {selectedProduct.servingLabel || '--'}</span>
-                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest bg-slate-50 px-3 py-1.5 rounded-full">{selectedProduct.coreMetrics?.calories?.amount || 0} Calories</span>
-                    </div>
-                </div>
-                {nutrientLoading ? <div className="space-y-4 animate-pulse px-4">{[1,2,3].map(i => <div key={i} className="h-24 bg-gray-50 rounded-[2rem]"></div>)}</div> : (
-                    <div className="space-y-6 px-4">
-                        <div className="grid grid-cols-2 gap-3">
-                            <div className="bg-emerald-50 text-emerald-600 p-6 rounded-[2.5rem] flex flex-col items-center justify-center">
-                                <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Protein</p>
-                                <p className="text-2xl font-black">{selectedProduct.coreMetrics?.protein?.amount || 0}g</p>
-                            </div>
-                            <div className="bg-slate-50 text-slate-900 p-6 rounded-[2.5rem] flex flex-col items-center justify-center">
-                                <p className="text-[9px] font-black uppercase tracking-widest opacity-60 mb-1">Carbs</p>
-                                <p className="text-2xl font-black">{selectedProduct.coreMetrics?.carbs?.amount || 0}g</p>
-                            </div>
+                <motion.div 
+                    initial={{ y: "100%" }} 
+                    animate={{ y: 0 }} 
+                    exit={{ y: "100%" }} 
+                    transition={{ type: "spring", damping: 25, stiffness: 200 }} 
+                    className="fixed inset-0 z-[11000] flex flex-col justify-end pointer-events-none"
+                >
+                    <div className="absolute inset-0 bg-slate-900/10 backdrop-blur-[1px] pointer-events-auto transition-opacity" onClick={() => setSelectedProduct(null)} />
+                    
+                    <div className="bg-white w-full rounded-t-[2.5rem] p-6 pb-10 pointer-events-auto h-[85vh] overflow-y-auto relative shadow-2xl">
+                        <div className="w-12 h-1 bg-slate-100 rounded-full mx-auto mb-8" />
+
+                        <div className="text-center mb-8">
+                            <h2 className="text-2xl font-black text-slate-900 leading-tight mb-2">{selectedProduct.fullName}</h2>
+                            <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">{selectedProduct.brand}</span>
                         </div>
-                        <div className="grid grid-cols-3 gap-3">
-                            {[ 
-                            { label: 'Sodium', data: selectedProduct.coreMetrics?.sodium, unit: 'mg', limit: 400 }, 
-                            { label: 'Sugar', data: selectedProduct.coreMetrics?.sugar, unit: 'g', limit: 12 },
-                            { label: 'Fat', data: selectedProduct.coreMetrics?.fat, unit: 'g', limit: 15 } 
-                            ].map((item, idx) => (
-                            <div key={idx} className={`${(item.data?.amount || 0) > item.limit ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-slate-50 text-slate-900 border-slate-50'} p-5 rounded-[2rem] text-center border transition-all`}>
-                                <p className="text-[8px] font-black uppercase tracking-widest opacity-60 mb-1">{item.label}</p>
-                                <p className="text-lg font-black">{item.data?.amount || 0}{item.unit}</p>
-                                <p className="text-[7px] font-black uppercase mt-1 opacity-40">{item.data?.dv || 0}% DV</p>
+
+                        {/* PORTION CONTROL */}
+                        <div className="flex items-center justify-between mb-8 bg-slate-50 p-2 rounded-2xl">
+                            <button onClick={() => setPortionSize(p => Math.max(0.5, p - 0.5))} className="w-12 h-12 bg-white rounded-xl text-xl font-bold text-slate-900 shadow-sm active:scale-95 transition-transform">-</button>
+                            <div className="text-center">
+                                <span className="block text-3xl font-black text-slate-900 tracking-tighter">{portionSize}<span className="text-xl text-slate-400">x</span></span>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Serving ({selectedProduct.servingLabel})</span>
                             </div>
+                            <button onClick={() => setPortionSize(p => p + 0.5)} className="w-12 h-12 bg-white rounded-xl text-xl font-bold text-slate-900 shadow-sm active:scale-95 transition-transform">+</button>
+                        </div>
+
+                        {/* MACRO GRID */}
+                        <div className="grid grid-cols-4 gap-2 mb-8">
+                            {[
+                                { label: 'Cal', val: selectedProduct.coreMetrics?.calories?.amount, unit: '' },
+                                { label: 'Pro', val: selectedProduct.coreMetrics?.protein?.amount, unit: 'g' },
+                                { label: 'Carb', val: selectedProduct.coreMetrics?.carbs?.amount, unit: 'g' },
+                                { label: 'Fat', val: selectedProduct.coreMetrics?.fat?.amount, unit: 'g' },
+                            ].map(m => (
+                                <div key={m.label} className="bg-slate-50 rounded-2xl p-3 flex flex-col items-center justify-center aspect-square">
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1 opacity-70">{m.label}</span>
+                                    <span className="text-xl font-black text-slate-900">{displayVal(m.val)}</span>
+                                    <span className="text-[9px] font-bold text-slate-400">{m.unit}</span>
+                                </div>
                             ))}
                         </div>
-                        <div className="p-7 bg-violet-600 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between">
-                        <div className="flex-1 pr-4">
-                            <h4 className="font-black text-[10px] uppercase tracking-widest mb-1 opacity-80">Safety Scan</h4>
-                            <p className="text-[11px] font-bold text-violet-100 leading-relaxed italic">Verified match for your {profile?.allergens?.join(', ') || 'dietary'} settings.</p>
-                        </div>
-                        <button onClick={handleAddToIntake} className="h-12 w-12 bg-white rounded-2xl flex items-center justify-center text-violet-600 shadow-lg active:scale-90 transition-all"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path d="M12 4v16m8-8H4" /></svg></button>
-                        </div>
-                        <div className="p-8 bg-slate-900 rounded-[2.5rem] border border-slate-800">
-                            <h4 className="text-[9px] font-black uppercase tracking-widest text-slate-500 mb-4 tracking-[0.2em]">Ingredients</h4>
-                            <p className="text-[11px] font-bold text-slate-400 italic leading-relaxed uppercase tracking-tighter line-clamp-6">{highlightAllergens(selectedProduct.ingredients)}</p>
+
+                        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent pt-10">
+                            <motion.button 
+                                whileTap={{ scale: 0.98 }}
+                                onClick={handleAddToIntake}
+                                className={`w-full py-5 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl ${trackingSuccess ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-300'}`}
+                            >
+                                {trackingSuccess ? 'Logged!' : `Add to ${selectedMeal}`}
+                            </motion.button>
                         </div>
                     </div>
-                )}
-                </div>
-            </motion.div>
+                </motion.div>
             )}
         </AnimatePresence>
       </ModalPortal>
-
-      <div className="px-4 md:px-8 pt-2">
-        <h1 className="text-3xl font-bold text-gray-900 tracking-tight leading-tight mb-4">Welcome back,<br/><span className="text-violet-600">{profile?.username || 'Quajaee Simmons'}</span>.</h1>
-        <div onClick={() => setIsSearching(true)} className="relative w-full cursor-pointer group mb-6"><div className="w-full bg-gray-100 rounded-2xl px-6 py-4 font-medium text-gray-400 border-2 border-transparent group-hover:border-violet-100 transition-all flex items-center gap-2 pl-4"><svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>Search brands, cravings, or items...</div></div>
-        <div className="flex overflow-x-auto gap-3 pb-4 no-scrollbar snap-x">{CATEGORIES.map((cat) => (<button key={cat.id} onClick={() => { setActiveCategory(cat.id); setCategoryResults(allRestaurants.filter(r => (r.category || "").toLowerCase().includes(cat.id.toLowerCase()))); }} className={`snap-start flex-shrink-0 flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black transition-all border whitespace-nowrap ${activeCategory === cat.id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-200'}`}><span>{cat.icon}</span><span>{cat.label}</span></button>))}</div>
-        
-        {!activeCategory && (
-          <div className="relative overflow-hidden rounded-[2.5rem] shadow-xl h-auto min-h-[300px] md:h-[260px] my-8">
-            <div className="absolute inset-0 flex transition-transform duration-700 h-full" style={{ transform: `translateX(-${currentAdIndex * 100}%)` }}>
-              {PARTNER_ADS.map((ad) => (
-                <div key={ad.id} className={`w-full h-full flex-shrink-0 relative bg-gradient-to-br ${ad.gradient} text-white p-8 flex flex-col md:flex-row items-center justify-between gap-8`}>
-                  <div className="flex-1 text-center md:text-left z-20"><h2 className="text-2xl md:text-3xl font-extrabold mb-2 tracking-tighter leading-none">{ad.name}</h2><p className="text-gray-300 mb-6 font-medium text-sm">{ad.offer}</p><button className={`bg-white px-6 py-2.5 rounded-xl text-sm font-black shadow-lg ${ad.buttonColor}`}>Claim Offer</button></div>
-                  <div className="relative w-full md:w-48 h-40 md:h-auto rounded-xl overflow-hidden shadow-2xl border-2 border-white/10 shrink-0"><img src={ad.image} alt="" className="object-cover w-full h-full" /></div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="mt-8">
-            <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2 mb-5">{activeCategory ? <span>🍽️ {activeCategory} Places</span> : <span>📍 Nearby Favorites</span>}</h2>
-            {loading ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">{[1,2,3].map(i => <div key={i} className="h-24 bg-gray-50 rounded-[2rem] animate-pulse"></div>)}</div> : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {(activeCategory ? categoryResults : featured).map((restaurant) => (
-                  <div key={restaurant.id} onClick={() => handleProductSelect({ ...restaurant, isExternal: false })} className="bg-white rounded-[2rem] p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer group">
-                    <div className="flex items-start justify-between">
-                        <div className="flex items-center gap-4">
-                            <div className="h-12 w-12 rounded-full bg-white p-1 border group-hover:scale-105 transition-transform shrink-0"><img src={getLogoUrl(restaurant.name)} alt={restaurant.name} className="w-full h-full object-contain rounded-full" /></div>
-                            <div><h3 className="text-base font-black text-gray-900 group-hover:text-violet-700 transition-colors leading-tight">{restaurant.name}</h3><div className="text-xs text-gray-500 font-bold">{restaurant.category} • {restaurant.distance} mi</div></div>
-                        </div>
-                        <span className="bg-gray-50 text-gray-700 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-tighter">★ {restaurant.rating || "New"}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-        </div>
-      </div>
-    </div>
+    </main>
   );
 };
 

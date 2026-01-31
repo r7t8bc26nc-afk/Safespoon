@@ -1,126 +1,290 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { db } from '../firebase';
-import { getAuth } from "firebase/auth";
-import { collection, getDocs, doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useMemo } from 'react';
 
-const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7'; 
-const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
+// --- CUSTOM ICONS (Imported as URLs) ---
+import breadSrc from '../icons/bread-slice.svg';
+import glassSrc from '../icons/glass.svg';
+import beanSrc from '../icons/coffee-bean.svg';
+import fishSrc from '../icons/steak.svg'; 
+import safeSrc from '../icons/heart-check.svg';
 
-export const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
-  const [menuItems, setMenuItems] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('entrees'); 
-  const [expandedId, setExpandedId] = useState(null);
+const BackArrow = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 18l-6-6 6-6"/>
+  </svg>
+);
 
-  const getLogoUrl = (name) => {
-    const domain = name?.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
-    return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&size=100&format=png`;
-  };
+// --- HELPER: COLORED ICON (ROBUST SAFARI FIX) ---
+// Uses explicit Webkit properties and quoted URLs to ensure 
+// masks render correctly on iOS/Safari.
+const ColoredIcon = ({ src, colorClass, sizeClass = "w-8 h-8" }) => (
+  <div 
+    className={`${sizeClass} ${colorClass}`}
+    style={{
+      // 1. Webkit prefix (Critical for Safari/iOS)
+      WebkitMaskImage: `url("${src}")`,
+      WebkitMaskSize: 'contain',
+      WebkitMaskRepeat: 'no-repeat',
+      WebkitMaskPosition: 'center',
 
-  useEffect(() => {
-    const fetchUSDAMenu = async () => {
-      if (!restaurant?.name) return;
-      try {
-        setLoading(true);
-        // Check local first
-        const localSnap = await getDocs(collection(db, "restaurants", String(restaurant.id), "menu_items"));
-        if (!localSnap.empty) {
-          setMenuItems(localSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
-          setLoading(false);
-          return;
+      // 2. Standard syntax
+      maskImage: `url("${src}")`,
+      maskSize: 'contain',
+      maskRepeat: 'no-repeat',
+      maskPosition: 'center',
+    }}
+  />
+);
+
+const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
+  const item = restaurant;
+  
+  // --- ANALYSIS LOGIC ---
+  const analysis = useMemo(() => {
+    if (!item || !userProfile) return null;
+
+    const issues = [];
+    let status = 'safe'; // 'safe', 'warning', 'unsafe'
+
+    // 1. ALLERGENS (Medical - High Risk)
+    const userAllergens = userProfile.allergens || {};
+    const itemAllergens = item.safetyProfile?.allergens || {};
+    
+    // Check for direct allergen matches
+    const detectedAllergens = Object.keys(userAllergens).filter(
+      key => userAllergens[key] && itemAllergens[key]
+    );
+
+    if (detectedAllergens.length > 0) {
+      status = 'unsafe';
+      detectedAllergens.forEach(allergen => {
+        issues.push({
+          type: 'allergen',
+          title: `Contains ${allergen}`,
+          message: `This item lists ${allergen} as an ingredient. Based on your medical profile, this is strictly unsafe for you to ingest.`,
+          severity: 'critical'
+        });
+      });
+    }
+
+    // 2. LIFESTYLE (Dietary Preferences - Medium Risk)
+    const lifestyle = userProfile.lifestyle || {};
+    const category = (item.taxonomy?.category || '').toLowerCase();
+    const macros = item.macros || {};
+
+    // KETO CHECK
+    if (lifestyle.isKeto) {
+        const carbs = macros.carbs || 0;
+        if (carbs > 10) {
+            status = status === 'unsafe' ? 'unsafe' : 'warning';
+            issues.push({
+                type: 'lifestyle',
+                title: 'High Carb Content',
+                message: `This item contains ${carbs}g of carbohydrates. This significantly eats into your daily allowance for a strict Keto diet.`,
+                severity: 'warning'
+            });
         }
+    }
 
-        // Query USDA by Brand Owner (National Chains)
-        const response = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${restaurant.name}&brandOwner=${restaurant.name}&pageSize=30&api_key=${USDA_API_KEY}`);
-        const data = await response.json();
-        
-        if (data.foods) {
-          const formatted = data.foods.map(f => ({
-            id: f.fdcId, name: f.description, category: f.brandOwner,
-            description: "USDA Analyzed: Review nutrients for personalized safety audit.",
-            is_meal: true
-          }));
-          setMenuItems(formatted);
+    // VEGAN CHECK
+    if (lifestyle.isVegan) {
+        const animalCategories = ['meat', 'dairy', 'poultry', 'fish', 'seafood', 'cheese', 'yogurt', 'milk', 'egg'];
+        if (animalCategories.some(cat => category.includes(cat))) {
+             status = status === 'unsafe' ? 'unsafe' : 'warning';
+             issues.push({
+                type: 'lifestyle',
+                title: 'Not Plant-Based',
+                message: `This item is categorized under '${item.taxonomy?.category}', which typically indicates animal-derived ingredients.`,
+                severity: 'warning'
+             });
         }
-      } catch (err) { console.error(err); } finally { setLoading(false); }
-    };
-    fetchUSDAMenu();
-  }, [restaurant]);
+    }
 
-  const handleToggleFavorite = async () => {
-    const auth = getAuth();
-    if (!auth.currentUser || !restaurant?.id) return;
-    const isFavorite = userProfile?.favorites?.includes(restaurant.id);
-    await updateDoc(doc(db, "users", auth.currentUser.uid), {
-        favorites: isFavorite ? arrayRemove(restaurant.id) : arrayUnion(restaurant.id)
-    });
-  };
+    // GLUTEN FREE CHECK
+    if (lifestyle.isGlutenFree && itemAllergens.wheat) {
+         status = 'unsafe';
+         issues.push({
+            type: 'lifestyle',
+            title: 'Contains Gluten',
+            message: "This item contains Wheat, which is a primary source of Gluten. It is not suitable for a Gluten-Free diet.",
+            severity: 'critical'
+         });
+    }
 
-  const groupedMenu = useMemo(() => {
-    const buckets = { entrees: [], sides: [], drinks: [] };
-    menuItems.forEach(item => {
-        const name = item.name.toLowerCase();
-        if (name.includes('drink') || name.includes('soda') || name.includes('tea')) buckets.drinks.push(item);
-        else if (name.includes('fries') || name.includes('side') || name.includes('chips')) buckets.sides.push(item);
-        else buckets.entrees.push(item);
-    });
-    return buckets;
-  }, [menuItems]);
+    return { status, issues };
+  }, [item, userProfile]);
 
-  const displayedItems = groupedMenu[activeTab] || [];
+
+  if (!item) return null;
+
+  // Data Normalization
+  const title = (item.name && item.name !== "Unknown") ? item.name : (item.taxonomy?.category || "Unknown Item");
+  const brand = item.brand || "Generic Brand";
+  const category = item.taxonomy?.category || "Grocery";
+  const allergens = item.safetyProfile?.allergens || {};
+  const ingredients = item.ingredients || "No ingredient data available.";
 
   return (
-    <div className="w-full min-h-screen bg-white font-['Host_Grotesk'] px-4 md:px-8 pb-32">
-      <div className="py-6 flex items-center justify-between sticky top-0 bg-white/90 backdrop-blur-md z-50 border-b border-slate-100 -mx-4 px-4 md:-mx-8 md:px-8">
-          <button onClick={onBack} className="h-12 w-12 flex items-center justify-center bg-slate-50 rounded-full"><svg className="w-5 h-5 text-slate-900" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="3"><path d="M15 19l-7-7 7-7"/></svg></button>
-          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Venue Menu Audit</span>
-          <button onClick={handleToggleFavorite} className={`h-12 w-12 rounded-full flex items-center justify-center shadow-lg transition-all ${userProfile?.favorites?.includes(restaurant.id) ? 'bg-rose-500 text-white shadow-rose-200' : 'bg-slate-50 text-slate-300'}`}><svg className="w-5 h-5" fill="currentColor" stroke="none" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg></button>
-      </div>
-
-      <div className="pt-8">
-        <div className="flex flex-col items-center text-center mb-10">
-            <div className="h-32 w-32 rounded-full bg-white border border-slate-100 flex items-center justify-center mb-6 overflow-hidden">
-                <img src={getLogoUrl(restaurant.name)} alt="" className="w-20 h-20 object-contain" onError={e => e.target.src = 'https://cdn-icons-png.flaticon.com/512/5223/5223755.png'} />
-            </div>
-            <h1 className="text-4xl font-black tracking-tighter text-slate-900 mb-2">{restaurant.name}</h1>
-            <div className="flex items-center gap-3">
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">{restaurant.category || "National Chain"}</span>
-                <span className="h-1 w-1 rounded-full bg-slate-300"></span>
-                <span className="text-violet-600 font-black text-xs uppercase tracking-widest">★ {restaurant.rating || "New"} FDC Score</span>
-            </div>
+    <div className="fixed inset-0 z-[100] bg-white flex flex-col animate-in slide-in-from-right duration-300">
+        
+        {/* HEADER */}
+        <div className="flex items-center px-4 py-4 border-b border-gray-100 bg-white sticky top-0 z-10">
+            <button 
+                onClick={onBack}
+                className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-slate-50 transition-colors -ml-2"
+            >
+                <BackArrow />
+            </button>
+            <span className="text-sm font-bold text-slate-900 ml-2">
+                Product Details
+            </span>
         </div>
 
-        <div className="flex justify-center md:justify-start gap-2 overflow-x-auto no-scrollbar pb-8 snap-x">
-            {['entrees', 'sides', 'drinks'].map(id => (
-                <button key={id} onClick={() => setActiveTab(id)} className={`snap-start shrink-0 flex items-center gap-2 px-6 py-3 rounded-full text-xs font-black transition-all border ${activeTab === id ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-500 border-slate-200'}`}>
-                    {id.toUpperCase()}
-                </button>
-            ))}
-        </div>
+        {/* SCROLLABLE CONTENT */}
+        <div className="flex-1 overflow-y-auto p-6 pb-24">
+            
+            {/* PRODUCT HEADER */}
+            <div className="mb-8 text-center">
+                 <span className="inline-block px-3 py-1 mb-3 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-black uppercase tracking-wider">
+                    {category}
+                </span>
+                <h2 className="text-3xl font-black text-slate-900 leading-tight mb-2">
+                    {title}
+                </h2>
+                <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">
+                    {brand}
+                </p>
+            </div>
 
-        {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-pulse">
-                {[1,2,3,4].map(i => <div key={i} className="h-24 bg-slate-50 rounded-[2rem]"></div>)}
+            {/* SAFETY ANALYSIS REPORT */}
+            {analysis && analysis.issues.length > 0 ? (
+                <div className="flex flex-col gap-3 mb-8">
+                    {analysis.issues.map((issue, i) => (
+                        <div 
+                            key={i} 
+                            className={`p-5 rounded-2xl border ${
+                                issue.severity === 'critical' 
+                                ? 'bg-red-50 border-red-100 text-red-900' 
+                                : 'bg-amber-50 border-amber-100 text-amber-900'
+                            }`}
+                        >
+                            <div className="flex items-center gap-2 mb-2">
+                                {issue.severity === 'critical' ? (
+                                    <div className="w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs font-bold">!</div>
+                                ) : (
+                                    <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-xs font-bold">?</div>
+                                )}
+                                <h3 className="font-bold uppercase tracking-wide text-xs">
+                                    {issue.severity === 'critical' ? 'Strictly Avoid' : 'Lifestyle Conflict'}
+                                </h3>
+                            </div>
+                            
+                            <h4 className="font-bold text-lg leading-tight mb-1">{issue.title}</h4>
+                            <p className="text-sm opacity-90 leading-relaxed">
+                                {issue.message}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                /* SAFE INDICATOR */
+                <div className="mb-8 p-5 bg-teal-50 border border-teal-100 rounded-2xl flex flex-col items-center justify-center text-center gap-2">
+                    {/* UPDATED: Uses ColoredIcon helper with bg-teal-600 */}
+                    <ColoredIcon 
+                        src={safeSrc} 
+                        colorClass="bg-teal-800" 
+                        sizeClass="w-8 h-8" 
+                    />
+                    <div>
+                        <h3 className="font-bold text-teal-800">Safe to Consume</h3>
+                        <p className="text-xs text-teal-600 mt-1">
+                            This item matches your profile and contains no flagged allergens.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {/* SAFETY BADGES GRID */}
+            <div className="grid grid-cols-2 gap-4 mb-8">
+                <SafetyBadge 
+                    label="Wheat" 
+                    icon={breadSrc} 
+                    detected={allergens.wheat} 
+                    isUserAllergen={userProfile?.allergens?.wheat}
+                />
+                <SafetyBadge 
+                    label="Dairy" 
+                    icon={glassSrc} 
+                    detected={allergens.milk} 
+                    isUserAllergen={userProfile?.allergens?.dairy}
+                />
+                <SafetyBadge 
+                    label="Soy" 
+                    icon={beanSrc} 
+                    detected={allergens.soy} 
+                    isUserAllergen={userProfile?.allergens?.soy}
+                />
+                <SafetyBadge 
+                    label="Shellfish" 
+                    icon={fishSrc} 
+                    detected={allergens.shellfish} 
+                    isUserAllergen={userProfile?.allergens?.shellfish}
+                />
             </div>
-        ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {displayedItems.map(item => (
-                    <motion.div key={item.id} layout onClick={() => setExpandedId(expandedId === item.id ? null : item.id)} className={`bg-slate-50 rounded-[2rem] p-6 border ${expandedId === item.id ? 'border-violet-200 bg-white ring-4 ring-violet-50' : 'border-slate-100'}`}>
-                        <h3 className="text-base font-black text-slate-900 mb-1">{item.name}</h3>
-                        <p className="text-xs font-medium text-slate-500 leading-relaxed line-clamp-2">{item.description}</p>
-                        <AnimatePresence>
-                            {expandedId === item.id && (
-                                <motion.div initial={{ height: 0 }} animate={{ height: 'auto' }} className="mt-4 pt-4 border-t border-slate-100">
-                                    <button className="w-full py-3 bg-violet-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest">Audit Full Nutrition</button>
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </motion.div>
-                ))}
+
+            {/* INGREDIENTS */}
+            <div>
+                <h3 className="text-[16px] font-semibold text-slate-700 capitalize tracking-tight mb-3">
+                    Ingredients
+                </h3>
+                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 leading-relaxed tracking-tight font-medium text-lg">
+                    {ingredients.toLowerCase()}
+                </div>
             </div>
-        )}
-      </div>
+        </div>
     </div>
   );
 };
+
+// --- SUB-COMPONENT FOR BADGES ---
+const SafetyBadge = ({ label, icon, detected, isUserAllergen }) => {
+    
+    // Define Styles
+    let containerStyle = "bg-slate-50 border-transparent";
+    let textClass = "text-slate-400";
+    let iconColor = "bg-slate-400"; // Default Gray Icon
+
+    if (detected) {
+        if (isUserAllergen) {
+             // DANGER: Detected & Allergic
+             containerStyle = "bg-white border-red-200 shadow-sm ring-2 ring-red-100";
+             textClass = "text-red-600";
+             iconColor = "bg-red-500";
+        } else {
+             // INFO: Detected but Neutral
+             containerStyle = "bg-yellow-100 border-yellow-200";
+             textClass = "text-yellow-500";
+             iconColor = "bg-yellow-500";
+        }
+    } else {
+        // EMPTY: Not Detected
+        containerStyle = "bg-slate-50 border-transparent opacity-50 grayscale";
+    }
+
+    return (
+        <div className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${containerStyle}`}>
+            <div className="mb-2 relative">
+                {/* USE COLORED ICON HELPER */}
+                <ColoredIcon src={icon} colorClass={iconColor} sizeClass="w-8 h-8" />
+
+                {detected && (
+                    <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${isUserAllergen ? 'bg-red-500' : 'bg-slate-400'}`}></div>
+                )}
+            </div>
+            <span className={`text-[10px] font-black uppercase tracking-wider ${textClass}`}>
+                {detected ? `${label} Detected` : label}
+            </span>
+        </div>
+    );
+};
+
+export default RestaurantMenu;

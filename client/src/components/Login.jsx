@@ -3,19 +3,20 @@ import {
   getAuth, 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword, 
-  updateProfile, 
   GoogleAuthProvider, 
   signInWithPopup 
 } from "firebase/auth";
 
 const Login = ({ onLogin }) => { 
-  // REMOVED: showSplash state and useEffect timer
   const [isSignup, setIsSignup] = useState(false);
   
   // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  
+  // UX State
+  const [showPassword, setShowPassword] = useState(false); // Added Toggle
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
@@ -26,7 +27,7 @@ const Login = ({ onLogin }) => {
 
   const auth = getAuth();
 
-  // Password Logic
+  // Password Logic (Kept your existing logic)
   useEffect(() => {
     let score = 0;
     let suggestion = '';
@@ -124,12 +125,15 @@ const Login = ({ onLogin }) => {
     return 'Strong';
   };
 
-  // REMOVED: Splash Screen Render Block
+  // Shared Input Styles
+  const inputContainerClass = "w-full h-14 bg-slate-50 border-2 border-transparent focus-within:border-violet-100 focus-within:bg-white rounded-2xl px-4 flex items-center transition-all";
+  const inputClass = "flex-1 bg-transparent h-full font-bold text-slate-900 outline-none placeholder-slate-300 ml-3";
+  const labelClass = "text-xs font-bold text-slate-700 uppercase tracking-widest ml-1 mb-1.5 block"; // Darker for readability
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row font-['Host_Grotesk'] text-slate-900 bg-white overflow-hidden animate-fade-in relative">
       
-      {/* Desktop Visual Side */}
+      {/* --- LEFT SIDE (Visuals - Kept Intact) --- */}
       <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-slate-900 relative flex-col justify-between p-12 text-white overflow-hidden">
         <div className="absolute inset-0 z-0">
           <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80" className="w-full h-full object-cover opacity-40 mix-blend-overlay" alt="Food background" />
@@ -145,12 +149,11 @@ const Login = ({ onLogin }) => {
         </div>
       </div>
 
-      {/* Form Side */}
+      {/* --- RIGHT SIDE (Form - Updated Elements) --- */}
       <div className="flex-1 flex flex-col h-full relative overflow-y-auto">
         <div className="absolute top-0 left-0 w-full p-6 flex items-center justify-between z-40">
            <div className="md:hidden"><span className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600">Safespoon</span></div>
            <div className="hidden md:block"></div>
-           <button onClick={handleGuestAccess} className="text-xs font-bold text-slate-400 hover:text-violet-600 transition-colors flex items-center gap-1 group">Explore <span className="group-hover:translate-x-1 transition-transform">→</span></button>
         </div>
 
         <div className="flex-1 flex flex-col justify-center relative z-10 py-12">
@@ -167,31 +170,58 @@ const Login = ({ onLogin }) => {
               <form onSubmit={handleSubmit} className="space-y-5">
                 
                 {/* Email Field */}
-                <div className="space-y-2 text-left">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Email</label>
-                  <input 
-                    type="email" 
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required 
-                    className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-slate-900 outline-none transition-all placeholder-slate-300"
-                    placeholder="harveyspecter@example.com"
-                  />
+                <div className="space-y-1 text-left">
+                  <label className={labelClass}>Email</label>
+                  <div className={inputContainerClass}>
+                    {/* Icon */}
+                    <svg className="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    <input 
+                        type="email" 
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required 
+                        className={inputClass}
+                        placeholder="name@example.com"
+                    />
+                  </div>
                 </div>
 
                 {/* Password Field */}
-                <div className="space-y-2 text-left">
-                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Password</label>
-                  <input 
-                    type="password" 
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required 
-                    className="w-full h-14 bg-slate-50 border-2 border-transparent focus:border-violet-100 focus:bg-white rounded-2xl px-5 font-bold text-slate-900 outline-none transition-all placeholder-slate-300"
-                    placeholder="••••••••"
-                  />
+                <div className="space-y-1 text-left">
+                  <div className="flex justify-between items-center">
+                    <label className={labelClass}>Password</label>
+                    {/* Added Forgot Password Link */}
+                    {!isSignup && (
+                        <button type="button" className="text-[10px] font-bold text-violet-600 hover:text-violet-700 uppercase tracking-wide">
+                            Forgot Password?
+                        </button>
+                    )}
+                  </div>
                   
-                  {/* Password Strength & Suggestions */}
+                  <div className={inputContainerClass}>
+                    {/* Lock Icon */}
+                    <svg className="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    
+                    <input 
+                        type={showPassword ? "text" : "password"} 
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required 
+                        className={inputClass}
+                        placeholder="••••••••"
+                    />
+                    
+                    {/* Show/Hide Toggle */}
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-slate-400 hover:text-slate-600">
+                        {showPassword ? (
+                            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
+                        ) : (
+                            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
+                        )}
+                    </button>
+                  </div>
+
+                  {/* Password Strength UI (Only Signup) */}
                   {isSignup && password.length > 0 && (
                     <div className="animate-in slide-in-from-top-1 fade-in duration-300">
                         <div className="flex gap-1 h-1 mt-2 px-1 mb-2">
@@ -211,18 +241,21 @@ const Login = ({ onLogin }) => {
                   )}
                 </div>
 
-                {/* Confirm Password */}
+                {/* Confirm Password (Only Signup) */}
                 {isSignup && (
-                    <div className="space-y-2 text-left animate-fade-in">
-                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Confirm Password</label>
-                        <input 
-                            type="password" 
-                            value={confirmPassword}
-                            onChange={(e) => setConfirmPassword(e.target.value)}
-                            required 
-                            className={`w-full h-14 bg-slate-50 border-2 focus:bg-white rounded-2xl px-5 font-bold text-slate-900 outline-none transition-all placeholder-slate-300 ${!passwordsMatch ? 'border-rose-200 bg-rose-50' : 'border-transparent focus:border-violet-100'}`}
-                            placeholder="••••••••"
-                        />
+                    <div className="space-y-1 text-left animate-fade-in">
+                        <label className={labelClass}>Confirm Password</label>
+                        <div className={`w-full h-14 bg-slate-50 border-2 rounded-2xl px-4 flex items-center transition-all ${!passwordsMatch ? 'border-rose-200 bg-rose-50' : 'border-transparent focus-within:border-violet-100 focus-within:bg-white'}`}>
+                            <svg className={`w-5 h-5 ${!passwordsMatch ? 'text-rose-400' : 'text-slate-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                            <input 
+                                type="password" 
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required 
+                                className={inputClass}
+                                placeholder="••••••••"
+                            />
+                        </div>
                         {!passwordsMatch && (
                             <div className="flex items-center gap-1.5 ml-1 animate-in slide-in-from-top-1 fade-in duration-200">
                                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
@@ -239,10 +272,11 @@ const Login = ({ onLogin }) => {
                   </div>
                 )}
 
+                {/* Primary Button (Updated to Violet) */}
                 <button 
                   type="submit" 
                   disabled={loading}
-                  className="w-full h-16 bg-slate-900 text-white font-bold text-lg rounded-2xl hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-slate-200 mt-4 disabled:opacity-70 flex items-center justify-center gap-2"
+                  className="w-full h-16 bg-violet-600 text-white font-bold text-lg rounded-2xl hover:scale-[1.02] hover:bg-violet-700 active:scale-[0.98] transition-all shadow-xl shadow-violet-200 mt-4 disabled:opacity-70 flex items-center justify-center gap-2"
                 >
                   {loading && <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
                   {loading ? "Verifying..." : (isSignup ? "Create Account" : "Login")}
@@ -269,7 +303,7 @@ const Login = ({ onLogin }) => {
                 {isSignup ? "Returning user?" : "Don't have an account?"}
                 <button 
                   onClick={() => { setIsSignup(!isSignup); setError(''); setPasswordsMatch(true); setPasswordSuggestion(''); }} 
-                  className="font-black text-violet-600 hover:text-violet-700 ml-1 transition-colors"
+                  className="font-bold text-violet-600 hover:text-violet-700 ml-1 transition-colors"
                 >
                   {isSignup ? "Login" : "Sign up"}
                 </button>

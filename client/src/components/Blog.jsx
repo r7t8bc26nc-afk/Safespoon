@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, onSnapshot } from "firebase/firestore";
+import { Helmet } from "react-helmet";
 
 // --- STATIC BLOG DATA ---
 const STATIC_POSTS = [
@@ -63,15 +64,15 @@ const STATIC_POSTS = [
 
 // --- MOCK AD COMPONENT ---
 const MockAd = () => (
-  <div className="w-full py-10 my-8">
+  <div className="w-full py-6 my-8 col-span-full">
      {/* Ad Label */}
      <div className="flex items-center gap-2 mb-3 px-1">
         <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sponsored Content</span>
         <div className="h-px bg-gray-100 flex-1"></div>
      </div>
 
-     {/* Ad Card (Fixed mobile height for full visibility) */}
-     <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-900 to-fuchsia-900 text-white shadow-xl shadow-gray-200 group cursor-pointer h-auto min-h-[300px] md:h-[220px]">
+     {/* Ad Card */}
+     <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-violet-900 to-fuchsia-900 text-white shadow-xl shadow-gray-200 group cursor-pointer h-auto min-h-[220px]">
         {/* Decorative Blob */}
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
         
@@ -93,7 +94,7 @@ const MockAd = () => (
                </button>
            </div>
            
-           <div className="relative w-full md:w-48 h-32 md:h-full shrink-0 rounded-xl overflow-hidden shadow-2xl border-2 border-white/10 transform md:rotate-3 group-hover:rotate-0 transition-transform duration-500">
+           <div className="relative w-full md:w-48 h-32 md:h-full shrink-0 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/10 transform md:rotate-3 group-hover:rotate-0 transition-transform duration-500">
                <img 
                  src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80" 
                  alt="Thrive Market" 
@@ -109,24 +110,50 @@ export const Blog = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedPost, setSelectedPost] = useState(null);
-  const [activeCategory, setActiveCategory] = useState('All');
 
   useEffect(() => {
     setLoading(true);
+    // Simulate fetching data
     setTimeout(() => {
         setPosts(STATIC_POSTS);
         setLoading(false);
     }, 500);
   }, []);
 
-  const categories = ['All', 'Safety Tips', 'Reviews', 'Nutrition', 'Shopping', 'Health'];
-  const filteredPosts = activeCategory === 'All' ? posts : posts.filter(p => p.category === activeCategory);
+  // --- SEO HELPERS (JSON-LD) ---
+  const generateListSchema = () => JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      "itemListElement": posts.map((post, index) => ({
+          "@type": "ListItem",
+          "position": index + 1,
+          "url": `https://safespoon.com/blog/${post.id}`,
+          "name": post.title
+      }))
+  });
+
+  const generateArticleSchema = (post) => JSON.stringify({
+      "@context": "https://schema.org",
+      "@type": "BlogPosting",
+      "headline": post.title,
+      "image": [post.image],
+      "datePublished": new Date(post.date).toISOString(),
+      "author": [{
+          "@type": "Person",
+          "name": post.author
+      }]
+  });
 
   // --- ARTICLE READING VIEW ---
   if (selectedPost) {
       return (
-        // ✅ FIXED: pb-5 (20px) to stop scrolling immediately after content
-        <div className="w-full max-w-3xl mx-auto pb-5 animate-fade-in px-5 md:px-0">
+        <article className="w-full pb-24 animate-fade-in font-['Switzer']">
+            {/* SEO for Article */}
+            <Helmet>
+                <title>{selectedPost.title} | Safespoon Blog</title>
+                <meta name="description" content={selectedPost.excerpt} />
+                <script type="application/ld+json">{generateArticleSchema(selectedPost)}</script>
+            </Helmet>
             
             {/* Minimal Nav */}
             <button onClick={() => setSelectedPost(null)} className="mb-6 flex items-center gap-2 text-gray-400 font-bold hover:text-gray-900 transition-colors text-sm uppercase tracking-wide group pt-6">
@@ -134,105 +161,74 @@ export const Blog = () => {
             </button>
 
             {/* Header */}
-            <header className="mb-6 text-left">
-                <div className="flex items-center gap-3 text-xs font-bold text-violet-600 uppercase tracking-wider mb-3">
-                    <span className="px-2 py-1 bg-violet-50 rounded-md">{selectedPost.category}</span>
+            <header className="mb-8 text-left">
+                <div className="flex items-center gap-3 text-xs font-bold text-violet-600 uppercase tracking-wider mb-4">
+                    <span className="px-2.5 py-1 bg-violet-50 rounded-md border border-violet-100">{selectedPost.category}</span>
                     <span className="text-gray-300">•</span>
                     <span className="text-gray-500">{selectedPost.date}</span>
                 </div>
                 
-                {/* ✅ FIXED: Larger Title (text-4xl md:text-6xl) */}
-                <h1 className="text-4xl md:text-6xl font-black text-gray-900 leading-none mb-6 tracking-tight">
+                <h1 className="text-4xl md:text-6xl font-bold text-gray-900 leading-tight mb-6 tracking-tight">
                     {selectedPost.title}
                 </h1>
 
-                {/* ✅ FIXED: Downsized Author Section */}
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-6">
-                    <div className="h-8 w-8 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
+                <div className="flex items-center gap-3 border-b border-gray-100 pb-8">
+                    <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
                          <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=random&color=fff&background=7c3aed`} alt="Author" />
                     </div>
                     <div>
-                        <p className="text-xs font-bold text-gray-900">{selectedPost.author}</p>
+                        <p className="text-sm font-bold text-gray-900">{selectedPost.author}</p>
+                        <p className="text-xs text-gray-400 font-medium">{selectedPost.readTime}</p>
                     </div>
                 </div>
             </header>
 
             {/* Feature Image */}
-            <div className="w-full h-64 md:h-[450px] bg-gray-100 mb-10 rounded-2xl overflow-hidden shadow-sm">
+            <div className="w-full h-64 md:h-[450px] bg-gray-100 mb-10 rounded-[2rem] overflow-hidden shadow-sm">
                 <img src={selectedPost.image} alt={selectedPost.title} className="w-full h-full object-cover" />
             </div>
 
             {/* Article Body */}
-            <article className="prose prose-lg prose-gray max-w-none font-serif leading-loose text-gray-700">
+            <div className="prose prose-lg prose-gray max-w-none font-serif leading-loose text-gray-700">
                 <div dangerouslySetInnerHTML={{ __html: selectedPost.content }} />
-            </article>
+            </div>
 
             {/* In-Article Ad */}
             <MockAd />
-        </div>
+        </article>
       );
   }
 
   // --- LIST VIEW ---
   return (
-    // ✅ FIXED: pb-5 (20px) to stop scrolling immediately after content
-    <div className="w-full max-w-3xl mx-auto pb-5">
+    <div className="w-full space-y-6 pb-24 font-['Switzer']">
+      {/* SEO for List */}
+      <Helmet>
+        <title>Safespoon Blog | Allergy Tips & Reviews</title>
+        <meta name="description" content="Read the latest articles on navigating dining out with food allergies, restaurant reviews, and safety tips." />
+        <script type="application/ld+json">{generateListSchema()}</script>
+      </Helmet>
       
-      {/* ✅ FIXED: Heading changed to "Blog." */}
-      <div className="pt-2 pb-4 border-b border-gray-100 mb-6">
-        <h1 className="text-2xl md:text-4xl font-black text-gray-900 tracking-tight mb-6">
-          Articles & Blog
-        </h1>
-        
-        {/* Categories - Scrolling Pills */}
-        <div className="flex overflow-x-auto gap-2 pb-2 hide-scroll snap-x">
-            {categories.map(cat => (
-                <button 
-                    key={cat} 
-                    onClick={() => setActiveCategory(cat)} 
-                    className={`
-                        snap-start flex-shrink-0 px-5 py-2.5 rounded-full text-xs font-bold transition-all duration-200 border whitespace-nowrap
-                        ${activeCategory === cat 
-                            ? 'bg-gray-900 text-white border-gray-900 shadow-md' 
-                            : 'bg-white text-gray-600 border-gray-200 hover:border-violet-300 hover:bg-violet-50'
-                        }
-                    `}
-                >
-                    {cat}
-                </button>
-            ))}
-        </div>
-      </div>
+      {/* Heading - HEADER REMOVED PER REQUEST */}
+      {/* Category Buttons Removed Per Request */}
 
       {loading ? (
-          <div className="space-y-24">
-             {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-50 animate-pulse rounded-xl"></div>)}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
+             {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-50 animate-pulse rounded-[2rem]"></div>)}
           </div>
       ) : (
-          <div className="space-y-20">
-              {filteredPosts.map((post, index) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
+              {posts.map((post, index) => (
                   <React.Fragment key={post.id}>
                     {/* Insert Premium Ad after the 2nd post */}
                     {index === 2 && <MockAd />}
 
                     <article 
-                        className="group cursor-pointer block" 
+                        className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full" 
                         onClick={() => setSelectedPost(post)}
                     >
-                        {/* Meta Top */}
-                        <div className="flex items-center gap-3 text-xs font-bold uppercase tracking-widest text-gray-400 mb-3">
-                            <span className="text-violet-600">{post.category}</span>
-                            <span>•</span>
-                            <span>{post.date}</span>
-                        </div>
-
-                        {/* Title */}
-                        <h2 className="text-3xl md:text-4xl font-black text-gray-900 leading-[1.1] mb-4 group-hover:text-violet-700 transition-colors">
-                            {post.title}
-                        </h2>
-
-                        {/* Image */}
-                        <div className="w-full h-[280px] md:h-[380px] bg-gray-100 mb-6 rounded-2xl overflow-hidden relative shadow-sm">
+                        {/* Image - 16:9 Aspect Ratio to match visual standard */}
+                        <div className="h-48 w-full relative bg-gray-50 shrink-0">
                             <img 
                                 src={post.image} 
                                 alt={post.title} 
@@ -240,22 +236,36 @@ export const Blog = () => {
                             />
                         </div>
 
-                        {/* Excerpt */}
-                        <p className="text-lg text-gray-500 font-serif leading-relaxed mb-4 line-clamp-3">
-                            {post.excerpt}
-                        </p>
-
-                        {/* Footer - Author & CTA */}
-                        <div className="flex items-center justify-between border-t border-gray-50 pt-4 mt-6">
-                            <div className="flex items-center gap-2">
-                                <div className="h-7 w-7 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
-                                    <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=random&color=fff&background=7c3aed`} alt="" />
-                                </div>
-                                <span className="text-xs font-bold text-gray-900 tracking-wide">{post.author}</span>
+                        {/* Content Container */}
+                        <div className="p-5 flex flex-col flex-grow">
+                            {/* Meta */}
+                            <div className="mb-2 flex items-center gap-2 text-[10px] font-medium capitalize tracking-tight text-violet-600">
+                                <span className="bg-violet-50 px-2 py-1 rounded border border-violet-100">{post.category}</span>
+                                <span className="text-gray-400">• {post.readTime}</span>
                             </div>
-                            <span className="text-xs font-bold uppercase tracking-widest text-violet-600 group-hover:translate-x-1 transition-transform">
-                                Read Story →
-                            </span>
+
+                            {/* Title - Large Text */}
+                            <h2 className="text-2xl font-bold text-gray-900 leading-tight group-hover:text-violet-700 transition-colors line-clamp-2 mb-2">
+                                {post.title}
+                            </h2>
+
+                            {/* Excerpt */}
+                            <p className="text-xs text-gray-500 font-medium line-clamp-2 leading-relaxed mb-4">
+                                {post.excerpt}
+                            </p>
+
+                            {/* Footer - Author & CTA */}
+                            <div className="flex items-center justify-between border-t border-gray-50 pt-3 mt-auto">
+                                <div className="flex items-center gap-2">
+                                    <div className="h-6 w-6 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
+                                        <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=random&color=fff&background=7c3aed`} alt="" />
+                                    </div>
+                                    <span className="text-[10px] font-regular text-gray-900 tracking-wide">{post.author}</span>
+                                </div>
+                                <span className="text-[10px] font-medium capitalize tracking-tight text-violet-600 group-hover:translate-x-1 transition-transform">
+                                    Read →
+                                </span>
+                            </div>
                         </div>
                     </article>
                   </React.Fragment>

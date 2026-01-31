@@ -1,253 +1,404 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { db } from '../firebase';
-import { getAuth } from "firebase/auth"; 
-import { collection, onSnapshot, doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
 
-const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
+// --- ICONS ---
+import cheeseIcon from '../icons/cheese.svg'; 
+import steakIcon from '../icons/steak.svg';
+import pantryIcon from '../icons/door-open.svg';
+import candyIcon from '../icons/candy.svg';
+import drinkIcon from '../icons/cup-straw.svg';
+import storeIcon from '../icons/store.svg'; 
 
-const CATEGORIES = [
-    { id: 'All', label: 'All', icon: '🍽️' },
-    { id: 'Fast Food', label: 'Fast Food', icon: '🍔' },
-    { id: 'Healthy', label: 'Healthy', icon: '🥗' },
-    { id: 'Mexican', label: 'Mexican', icon: '🌮' },
-    { id: 'Pizza', label: 'Pizza', icon: '🍕' },
-    { id: 'Coffee', label: 'Coffee', icon: '☕' },
-    { id: 'Burgers', label: 'Burgers', icon: '🥩' },
-];
+// --- CONFIGURATION ---
+const AISLES = {
+  'All': [],
+  'Dairy': ['milk', 'cheese', 'yogurt', 'cream', 'butter', 'dairy'],
+  'Meat': ['meat', 'chicken', 'poultry', 'beef', 'pork', 'fish', 'seafood'],
+  'Pantry': ['cereal', 'pasta', 'rice', 'sauce', 'oil', 'spice', 'baking', 'bread'],
+  'Snacks': ['chip', 'snack', 'candy', 'chocolate', 'cracker', 'popcorn', 'cookie'],
+  'Drinks': ['beverage', 'juice', 'soda', 'water', 'tea', 'coffee', 'drink']
+};
 
-export const RestaurantExplorer = ({ onOpenMenu, userProfile, onAuthRequired }) => {
-  const [mode, setMode] = useState('restaurants');
-  const [restaurants, setRestaurants] = useState([]);
-  const [groceries, setGroceries] = useState([]); 
-  const [loading, setLoading] = useState(true);
+const SUB_SECTIONS = {
+  'Dairy': ['Milk', 'Cheese', 'Yogurt', 'Butter & Cream'],
+  'Meat': ['Chicken', 'Beef', 'Pork', 'Fish & Seafood'],
+  'Pantry': ['Cereal', 'Pasta & Rice', 'Sauces', 'Baking'],
+  'Snacks': ['Chips & Crackers', 'Candy & Sweets', 'Bars'],
+  'Drinks': ['Water', 'Soda', 'Juice', 'Coffee & Tea']
+};
+
+export const RestaurantExplorer = ({ onOpenMenu, userProfile }) => {
+  const [items, setItems] = useState([]);
+  const [activeAisle, setActiveAisle] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
-  const [activeCategory, setActiveCategory] = useState('All');
-  const [selectedIngredient, setSelectedIngredient] = useState(null);
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [loading, setLoading] = useState(true);
+  
+  // Navigation & View State
+  const [viewingSubPage, setViewingSubPage] = useState(null); 
+  const [isSearchMode, setIsSearchMode] = useState(false);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const searchInputRef = useRef(null);
 
-  const getLogoUrl = (name) => {
-    if (!name) return '';
-    const domain = name.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
-    return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&size=100&format=png`;
-  };
-
+  // --- FIXED USE EFFECT (Handles Safari Crash) ---
   useEffect(() => {
     setLoading(true);
-    const unsubRestaurants = onSnapshot(collection(db, "restaurants"), (snapshot) => {
-        const restData = snapshot.docs.map(doc => ({
-            id: doc.id, ...doc.data(), distance: (Math.random() * 10 + 0.5).toFixed(1) 
-        }));
-        setRestaurants(restData);
-    });
-
-    const unsubGroceries = onSnapshot(collection(db, "groceries"), (snapshot) => {
-        const grocData = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setGroceries(grocData);
-        setLoading(false);
-    });
-
-    return () => { unsubRestaurants(); unsubGroceries(); };
-  }, []);
-
-  const handleToggleFavorite = async (e, itemId) => {
-    e.stopPropagation(); 
+    const q = query(collection(db, "groceries"), orderBy("lastUpdated", "desc"), limit(300));
     
-    // GUEST INTERRUPT: Soft convert to signup
-    if (!userProfile) {
-        onAuthRequired();
-        return;
+    const unsub = onSnapshot(q, (snapshot) => {
+      setItems(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    });
+
+    try {
+      const rawHistory = JSON.parse(localStorage.getItem('safespoon_search_history') || '[]');
+      const cleanHistory = Array.isArray(rawHistory) 
+        ? rawHistory.filter(item => typeof item === 'string') 
+        : [];
+      setRecentSearches(cleanHistory);
+    } catch (err) {
+      console.warn("Cleared corrupted search history", err);
+      setRecentSearches([]);
     }
 
-    const auth = getAuth();
-    const user = auth.currentUser;
-    const userRef = doc(db, "users", user.uid);
-    const isFavorite = userProfile?.favorites?.includes(itemId);
-    try {
-        if (isFavorite) await updateDoc(userRef, { favorites: arrayRemove(itemId) });
-        else await updateDoc(userRef, { favorites: arrayUnion(itemId) });
-    } catch (err) { console.error(err); }
+    return () => unsub();
+  }, []);
+
+  // --- SAFETY & LIFESTYLE LOGIC ---
+  const getSafetyAnalysis = (item) => {
+    if (!userProfile) return { status: 'neutral', title: '', copy: '' };
+    
+    const itemAllergens = item.safetyProfile?.allergens || {};
+    const userAllergens = userProfile.allergens || {};
+    const userLifestyle = userProfile.lifestyle || {}; 
+
+    // 1. CRITICAL: Allergen Check (Red / Avoid)
+    const conflicts = Object.keys(userAllergens).filter(k => userAllergens[k] && itemAllergens[k]);
+    if (conflicts.length > 0) {
+      return { 
+        status: 'unsafe', 
+        title: `Contains ${conflicts.join(', ')}`,
+        copy: `This item contains ingredients you've flagged as strictly unsafe. Best to steer clear.`
+      };
+    }
+
+    // 2. WARNING: Lifestyle Check (Yellow / Caution)
+    if (userLifestyle.isKeto && (item.macros?.carbs > 10)) {
+       return {
+         status: 'lifestyle_conflict',
+         title: 'High Carb Count',
+         copy: "This choice is a bit of a rebel against your Keto goals. It's safe to eat, but might use up your daily carb allowance faster than you'd like."
+       };
+    }
+
+    if (userLifestyle.isVegan && (item.taxonomy?.category?.includes('dairy'))) {
+        return {
+          status: 'lifestyle_conflict',
+          title: 'Contains Animal Products',
+          copy: "While not an allergen risk, this aligns more with traditional dairy than a plant-based lifestyle."
+        };
+    }
+
+    // 3. SAFE
+    return { status: 'safe', title: '', copy: '' };
   };
 
-  const checkSafety = (item) => {
-      // GUEST MODE: Assume safe but indicate personalization required
-      if (!userProfile) return { isSafe: true, isGuest: true, conflicts: [] };
-
-      const userRestrictions = (userProfile?.restrictions || []).map(r => r.toLowerCase());
-      const conflicts = [];
-      (item.tags || []).forEach(tag => {
-          if (userRestrictions.includes(tag.toLowerCase())) conflicts.push(tag);
-          if (tag.toLowerCase() === 'wheat' && userRestrictions.includes('gluten')) {
-               if (!conflicts.includes('Gluten')) conflicts.push('Gluten (Wheat)');
-          }
-      });
-      return { isSafe: conflicts.length === 0, conflicts };
+  const handleSearchSubmit = (term) => {
+    if (!term) return;
+    const newHistory = [term, ...recentSearches.filter(t => t !== term)].slice(0, 5);
+    setRecentSearches(newHistory);
+    localStorage.setItem('safespoon_search_history', JSON.stringify(newHistory));
+    setSearchTerm(term);
+    setIsSearchMode(false);
   };
 
-  const filteredRestaurants = restaurants.filter(r => {
-    const matchesSearch = r.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-    const matchesCategory = activeCategory === 'All' || (r.category && r.category.includes(activeCategory));
-    return matchesSearch && matchesCategory;
-  });
+  // --- FILTERING ---
+  const filteredItems = useMemo(() => {
+    return items.filter(item => {
+      const name = (item.name || '').toLowerCase();
+      const brand = (item.brand || '').toLowerCase();
+      const cat = (item.taxonomy?.category || '').toLowerCase();
+      const query = searchTerm.toLowerCase();
 
-  const filteredGroceries = groceries.filter(i => 
-      i.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false
-  );
+      // In Overlay Mode, we search everything. In Feed mode, we filter by Aisle + Search
+      const matchesSearch = query === '' || name.includes(query) || brand.includes(query);
+      const aisleKeywords = AISLES[activeAisle];
+      const matchesAisle = isSearchMode ? true : (activeAisle === 'All' || aisleKeywords.some(k => cat.includes(k)));
 
-  const handleImageError = (e) => {
-      e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80'; 
-      e.target.style.filter = "grayscale(20%) opacity(80%)";
-  };
+      return matchesSearch && matchesAisle;
+    });
+  }, [items, activeAisle, searchTerm, isSearchMode]);
 
-  return (
-    <div className={`w-full max-w-7xl mx-auto pb-24 transition-all duration-300 ${isExpanded ? 'fixed inset-0 z-[100] bg-white p-6 overflow-y-auto' : 'relative'}`}>
-      
-      {!isExpanded && <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-violet-100 rounded-full blur-3xl -z-10 opacity-40 animate-pulse"></div>}
+  const groupedItems = useMemo(() => {
+    if (activeAisle === 'All') {
+       // Group by Aisle
+       const groups = {};
+       Object.keys(AISLES).forEach(key => {
+         if (key === 'All') return;
+         const keywords = AISLES[key];
+         const matches = filteredItems.filter(item => 
+           keywords.some(k => (item.taxonomy?.category || '').toLowerCase().includes(k))
+         );
+         if (matches.length > 0) groups[key] = matches;
+       });
+       return groups;
+    } else {
+       // Group by SubSection
+       const groups = {};
+       const subs = SUB_SECTIONS[activeAisle] || [];
+       subs.forEach(sub => {
+         const keywords = sub.toLowerCase().split(' & ').flatMap(k => k.split(' '));
+         const matches = filteredItems.filter(item => 
+           keywords.some(k => (item.taxonomy?.category || '').toLowerCase().includes(k))
+         );
+         if (matches.length > 0) groups[sub] = matches;
+       });
+       return groups;
+    }
+  }, [filteredItems, activeAisle]);
 
-      <div className={`flex flex-col gap-4 ${isExpanded ? 'mt-4' : 'pt-4'}`}>
-         
-         {!isExpanded && (
-             <div className="flex justify-end mb-2">
-                <div className="bg-gray-100 p-1 rounded-xl inline-flex w-full md:w-auto">
-                    <button onClick={() => setMode('restaurants')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'restaurants' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500'}`}>Restaurants</button>
-                    <button onClick={() => setMode('ingredients')} className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold transition-all ${mode === 'ingredients' ? 'bg-gray-900 text-white shadow-md' : 'text-gray-500'}`}>Groceries</button>
-                </div>
-             </div>
-         )}
+  // --- COMPONENTS ---
+  const ProductCard = ({ item, minimal = false }) => {
+    const { status, title, copy } = getSafetyAnalysis(item);
+    const isUnsafe = status === 'unsafe';
+    const isLifestyleConflict = status === 'lifestyle_conflict';
 
-         <div className="flex items-center gap-4">
-            {isExpanded && (
-                <button onClick={() => setIsExpanded(false)} className="p-2 -ml-2 text-slate-900">
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7"/></svg>
-                </button>
-            )}
-            <div className="relative flex-1 z-20">
-                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                </div>
-                <input 
-                    type="text" 
-                    placeholder={mode === 'restaurants' ? "Search for 'Burgers', 'Sushi'..." : "Search 'Oat Milk', 'Flour'..."} 
-                    value={searchTerm} 
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    onFocus={() => setIsExpanded(true)}
-                    className="w-full bg-slate-100 rounded-2xl pl-12 pr-4 py-4 font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-violet-500 transition-all shadow-sm" 
-                />
-            </div>
-         </div>
+    // Base Styles
+    let cardStyle = "bg-white border-slate-100 hover:border-slate-300";
+    let badge = null;
 
-         {!isExpanded && mode === 'restaurants' && (
-            <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar">
-                {CATEGORIES.map((cat) => (
-                    <button key={cat.id} onClick={() => setActiveCategory(cat.id)} className={`whitespace-nowrap px-4 py-2 rounded-full text-sm font-bold transition-all border ${activeCategory === cat.id ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-600 border-gray-100'}`}>
-                        <span>{cat.icon}</span> <span>{cat.label}</span>
-                    </button>
-                ))}
-            </div>
-         )}
-      </div>
+    // Safety Styling
+    if (isUnsafe) {
+      cardStyle = "bg-red-50 border-red-200 ring-2 ring-red-400 shadow-[0_0_15px_rgba(239,68,68,0.25)]";
+      badge = (
+        <span className="absolute top-2 right-2 px-1.5 py-0.5 bg-red-600 text-white rounded text-[9px] font-black uppercase tracking-tight z-10">
+          Avoid
+        </span>
+      );
+    } else if (isLifestyleConflict && !minimal) {
+       cardStyle = "bg-yellow-50 border-yellow-200 hover:border-yellow-300";
+    }
 
-      <div className={`${isExpanded && 'mt-8'}`}>
-          {loading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mt-6">
-                {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-100 rounded-[2rem] animate-pulse"></div>)}
-            </div>
-          ) : (
-            <>
-            {mode === 'restaurants' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
-                    {filteredRestaurants.map((restaurant) => {
-                        const isFavorite = userProfile?.favorites?.includes(restaurant.id);
-                        return (
-                            <div key={restaurant.id} onClick={() => onOpenMenu(restaurant)} className="group bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer relative overflow-hidden flex flex-col">
-                                <div className="h-40 w-full bg-gray-200 relative overflow-hidden">
-                                    <img src={`https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400`} alt={restaurant.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" onError={(e) => e.target.src='https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400'} />
-                                    <div className="absolute top-3 left-3 flex gap-2">
-                                        {restaurant.verified && <span className="bg-emerald-500 text-white text-[10px] font-black uppercase px-2 py-1 rounded-md shadow-sm">Verified</span>}
-                                        <span className="bg-white/90 backdrop-blur-md text-gray-900 text-[10px] font-bold px-2 py-1 rounded-md shadow-sm flex items-center gap-1">★ {restaurant.rating || "New"}</span>
-                                    </div>
-                                    <button onClick={(e) => handleToggleFavorite(e, restaurant.id)} className={`absolute top-3 right-3 h-8 w-8 rounded-full flex items-center justify-center shadow-md transition-all ${isFavorite ? 'bg-rose-500 text-white' : 'bg-white text-gray-400 hover:scale-110'}`}><svg className="w-4 h-4" fill={isFavorite ? "currentColor" : "none"} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg></button>
-                                </div>
-                                <div className="p-5 pt-12 relative flex-1 flex flex-col">
-                                    <div className="absolute -top-8 left-5 h-16 w-16 rounded-full bg-white p-1 shadow-md border border-gray-50"><img src={getLogoUrl(restaurant.name)} alt="logo" className="w-full h-full object-contain rounded-full" onError={(e) => e.target.style.display='none'} /></div>
-                                    <div className="mb-2">
-                                        <h3 className="text-xl font-extrabold text-gray-900 leading-tight group-hover:text-violet-700 transition-colors">{restaurant.name}</h3>
-                                        <div className="flex items-center gap-2 mt-1">
-                                            <span className="text-xs font-bold text-gray-500 bg-gray-50 px-2 py-1 rounded-md">{restaurant.category || "Restaurant"}</span>
-                                            <span className="text-xs font-bold text-gray-400">•</span>
-                                            <span className="text-xs font-bold text-gray-500">{restaurant.distance} mi</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
+    return (
+      <article 
+        onClick={() => onOpenMenu(item)}
+        className={`flex flex-col p-4 rounded-2xl border transition-all cursor-pointer relative overflow-visible group ${cardStyle} ${minimal ? 'min-w-[150px] w-[150px]' : 'w-full'}`}
+      >
+        <div className="flex justify-between items-start mb-1 h-5 w-full pr-8">
+          <span className="text-[10px] font-bold text-slate-400 capitalize tracking-tight truncate w-full">
+            {item.brand || "Generic"}
+          </span>
+        </div>
+        
+        {badge}
 
-            {mode === 'ingredients' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-6">
-                    {filteredGroceries.map(item => {
-                        const { isSafe, isGuest, conflicts } = checkSafety(item);
-                        return (
-                            <div key={item.id} onClick={() => setSelectedIngredient(item)} className="group relative bg-white rounded-3xl border border-gray-100 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 overflow-hidden cursor-pointer flex flex-col">
-                                <div className="h-40 w-full bg-gray-50 relative overflow-hidden">
-                                    <img src={item.image} alt={item.name} onError={handleImageError} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
-                                    <div className={`absolute top-3 right-3 px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-wider backdrop-blur-md shadow-sm border border-white/20 ${isGuest ? 'bg-violet-500 text-white' : (isSafe ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white')}`}>{isGuest ? 'Check Safety' : (isSafe ? 'Safe' : 'Avoid')}</div>
-                                </div>
-                                <div className="p-5 flex-1 flex flex-col">
-                                    <div className="mb-2">
-                                        <p className="text-gray-400 text-[10px] font-bold uppercase tracking-wide mb-1">{item.brand}</p>
-                                        <h3 className="font-extrabold text-lg text-gray-900 leading-tight line-clamp-2">{item.name}</h3>
-                                    </div>
-                                    <div className="mt-auto pt-3 border-t border-gray-50 flex items-center justify-between text-[10px] font-bold text-gray-500">
-                                        {item.nutrition ? <div className="flex gap-2"><span>🔥 {item.nutrition.calories || 'N/A'} Cal</span><span>💪 {item.nutrition.protein || '0g'} Pro</span></div> : <span className="opacity-50">View Details</span>}
-                                        <span className="text-violet-600 group-hover:translate-x-1 transition-transform">View →</span>
-                                    </div>
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-            </>
-          )}
-      </div>
+        <h3 className={`font-bold text-slate-900 leading-tight group-hover:text-indigo-600 transition-colors capitalize tracking-tight line-clamp-3 ${minimal ? 'text-sm h-12' : 'text-base'}`}>
+          {(item.name || item.taxonomy?.category || 'Unknown').toLowerCase()}
+        </h3>
 
-      {selectedIngredient && (
-          <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-              <div className="bg-white rounded-[2rem] p-6 w-full max-w-md shadow-2xl relative">
-                  <button onClick={() => setSelectedIngredient(null)} className="absolute top-4 right-4 h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">✕</button>
-                  <div className="text-center mb-6">
-                      <div className="h-20 w-20 mx-auto rounded-full bg-gray-50 mb-4 overflow-hidden shadow-sm border-4 border-white"><img src={selectedIngredient.image} onError={handleImageError} alt={selectedIngredient.name} className="w-full h-full object-cover" /></div>
-                      <h2 className="text-xl font-black text-gray-900 leading-tight mb-1">{selectedIngredient.name}</h2>
-                      <p className="text-gray-500 font-bold uppercase text-xs tracking-wide">{selectedIngredient.brand}</p>
-                  </div>
-                  <div className="bg-gray-50 rounded-xl p-5 border border-gray-100 mb-6">
-                      <h3 className="font-black text-gray-900 uppercase tracking-widest text-[10px] mb-3 border-b border-gray-200 pb-2">Nutrition Facts</h3>
-                      {selectedIngredient.nutrition ? (
-                          <div className="space-y-2 text-sm">
-                              <div className="flex justify-between items-center"><span className="font-bold text-gray-600">Calories</span><span className="font-black text-lg text-gray-900">{selectedIngredient.nutrition.calories || 'N/A'}</span></div>
-                              <div className="w-full h-px bg-gray-200"></div>
-                              <div className="flex justify-between items-center"><span className="font-medium text-gray-500">Protein</span><span className="font-bold text-gray-900">{selectedIngredient.nutrition.protein || 'N/A'}</span></div>
-                              <div className="flex justify-between items-center"><span className="font-medium text-gray-500">Total Fat</span><span className="font-bold text-gray-900">{selectedIngredient.nutrition.fat || 'N/A'}</span></div>
-                              <div className="flex justify-between items-center"><span className="font-medium text-gray-500">Carbs</span><span className="font-bold text-gray-900">{selectedIngredient.nutrition.carbs || 'N/A'}</span></div>
-                          </div>
-                      ) : <div className="text-center text-gray-400 text-sm">No data available</div>}
-                  </div>
-                  {(() => {
-                      const { isSafe, isGuest, conflicts } = checkSafety(selectedIngredient);
-                      return (
-                          <div className={`p-4 rounded-xl border flex items-start gap-3 ${isGuest ? 'bg-violet-50 border-violet-100' : (isSafe ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100')}`}>
-                             <span className="text-2xl">{isGuest ? '✨' : (isSafe ? '👍' : '⚠️')}</span>
-                             <div>
-                                 <h3 className={`font-bold text-sm ${isGuest ? 'text-violet-800' : (isSafe ? 'text-emerald-800' : 'text-rose-800')}`}>{isGuest ? 'Personalize Phlynt' : (isSafe ? 'Safe Choice' : 'Conflict Warning')}</h3>
-                                 <p className={`text-xs mt-1 ${isGuest ? 'text-violet-600' : (isSafe ? 'text-emerald-600' : 'text-rose-600')}`}>{isGuest ? 'Sign up to see if this matches your profile.' : (isSafe ? 'No allergens detected.' : `Contains: ${conflicts.join(', ')}`)}</p>
-                             </div>
-                          </div>
-                      );
-                  })()}
-              </div>
+        {!minimal && (isUnsafe || isLifestyleConflict) && (
+          <div className="mt-3 pt-3 border-t border-slate-200/50">
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isUnsafe ? 'text-red-500' : 'text-yellow-600'}`}>
+              {title}
+            </p>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              {copy}
+            </p>
           </div>
+        )}
+      </article>
+    );
+  };
+
+  // --- VIEW: SEARCH OVERLAY ---
+  if (isSearchMode) {
+    return (
+      <div className="fixed inset-0 bg-white z-[5000] flex flex-col font-['Switzer'] animate-in fade-in duration-200">
+        <div className="flex items-center gap-3 py-4 border-b border-gray-100 px-4 bg-white">
+          <div className="relative flex-1">
+             <input
+              ref={searchInputRef}
+              autoFocus
+              type="text"
+              placeholder="Search Safespoon..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearchSubmit(searchTerm)}
+              className="w-full pl-10 pr-10 py-3 bg-gray-100 border-none rounded-xl text-slate-900 font-bold focus:ring-2 focus:ring-slate-900 capitalize tracking-tight outline-none"
+            />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+               </svg>
+            </div>
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400">
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"/></svg>
+              </button>
+            )}
+          </div>
+          <button onClick={() => { setIsSearchMode(false); setSearchTerm(''); }} className="text-sm font-bold text-slate-500 capitalize tracking-tight">Cancel</button>
+        </div>
+
+        <div className="p-6 overflow-y-auto">
+          {searchTerm.length === 0 ? (
+            <>
+              <h3 className="text-xs font-bold text-slate-400 capitalize tracking-tight mb-4">Recent Searches</h3>
+              <div className="flex flex-wrap gap-2">
+                {recentSearches.map((term, i) => (
+                  <button key={i} onClick={() => handleSearchSubmit(term)} className="px-4 py-2 bg-slate-50 rounded-lg text-sm font-semibold text-slate-600 capitalize tracking-tight hover:bg-slate-100">
+                    {term}
+                  </button>
+                ))}
+                {recentSearches.length === 0 && <p className="text-sm text-slate-300 italic">No recent history.</p>}
+              </div>
+            </>
+          ) : (
+             <div className="flex flex-col gap-4">
+                {filteredItems.length === 0 ? (
+                    <p className="text-center text-slate-400 font-bold mt-10">No results found.</p>
+                ) : (
+                    filteredItems.map(item => <ProductCard key={item.id} item={item} minimal={false} />)
+                )}
+             </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // --- VIEW: SubPage (Vertical List) ---
+  if (viewingSubPage) {
+    const subItems = groupedItems[viewingSubPage] || [];
+    return (
+      <div className="flex flex-col h-full bg-white font-['Switzer'] animate-in slide-in-from-right duration-300">
+        
+        {/* FIX: Match sticky offset to App Header height
+            Mobile App Header ~76px -> Set to top-[76px]
+            Desktop App Header 80px -> Set to md:top-[80px]
+            Added z-40 so it sits under the App Header (z-50) but above content (z-0)
+        */}
+        <div className="sticky top-[76px] md:top-[80px] z-40 bg-white/95 backdrop-blur-sm border-b border-slate-100 py-4 flex items-center justify-between -mx-4 md:-mx-8 px-4 md:px-8">
+          <div className="flex items-center gap-3">
+             <button 
+                onClick={() => setViewingSubPage(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-50 hover:bg-slate-100 transition-colors"
+            >
+                <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <h2 className="text-xl font-bold text-slate-900 capitalize tracking-tight">{viewingSubPage}</h2>
+          </div>
+          <span className="text-xs font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded-full">{subItems.length} items</span>
+        </div>
+        
+        <div className="flex flex-col gap-3 pb-24 pt-4 overflow-y-auto relative z-0">
+          {subItems.map(item => <ProductCard key={item.id} item={item} minimal={false} />)}
+        </div>
+      </div>
+    );
+  }
+
+  // --- VIEW: Main Feed ---
+  return (
+    <div className="flex flex-col h-full bg-white font-['Switzer']">
+      
+      {/* FIX: 
+          1. Changed top-[88px] -> top-[76px] md:top-[80px] to match App Header exactly (removing gap).
+          2. Used z-40 so it doesn't fight the main header (z-50).
+          3. Added bg-white to ensure opacity.
+      */}
+      <div className="bg-white sticky top-[70px] md:top-[80px] z-40 pb-4 pt-2 shadow-[0_1px_0px_rgba(0,0,0,0.03)] -mx-4 md:-mx-8 px-4 md:px-8">
+        <div className="mb-6">
+           {/* Fake Search Bar to Trigger Overlay */}
+          <div className="relative group">
+            <input 
+              readOnly
+              onFocus={() => setIsSearchMode(true)}
+              onClick={() => setIsSearchMode(true)}
+              placeholder={`Search ${activeAisle === 'All' ? 'products' : activeAisle.toLowerCase()}...`}
+              className="w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-slate-900 font-bold group-hover:border-slate-300 transition-all capitalize tracking-tight cursor-text outline-none"
+            />
+            <div className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none">
+               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+               </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* TABS */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
+          {Object.keys(AISLES).map((aisle) => {
+            const isActive = activeAisle === aisle;
+            const renderIcon = (a) => {
+                const style = `w-4 h-4 ${isActive ? 'brightness-0 invert' : 'opacity-40'}`;
+                const map = { 'All': storeIcon, 'Dairy': cheeseIcon, 'Meat': steakIcon, 'Pantry': pantryIcon, 'Snacks': candyIcon, 'Drinks': drinkIcon };
+                return <img src={map[a]} className={style} alt="" />;
+            };
+            
+            return (
+              <button
+                key={aisle}
+                onClick={() => { setActiveAisle(aisle); setSearchTerm(''); }}
+                className={`flex items-center justify-center gap-1.5 px-5 h-10 rounded-full text-[11px] font-bold capitalize tracking-tight transition-all border whitespace-nowrap ${
+                  isActive
+                    ? 'bg-slate-900 text-white border-slate-900 shadow-lg' 
+                    : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'
+                }`}
+              >
+                {renderIcon(aisle)}
+                <span>{aisle}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* VIEW RENDERER */}
+      {loading ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-slate-300 gap-2 mt-20">
+          <div className="w-8 h-8 border-4 border-slate-200 border-t-slate-900 rounded-full animate-spin"/>
+          <span className="font-bold text-xs capitalize tracking-tight">Loading Safespoon...</span>
+        </div>
+      ) : Object.keys(groupedItems).length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center text-center py-20 px-6">
+           <p className="text-slate-900 font-bold mb-1 capitalize tracking-tight">No items found.</p>
+        </div>
+      ) : (
+        /* FIX: Relative Z-0 to force content below the z-40 header */
+        <div className="flex flex-col gap-1 pb-24 pt-0 relative z-0">
+          {Object.entries(groupedItems).map(([title, items]) => (
+            <section key={title} className="flex flex-col">
+              {/* ALIGNED HEADER */}
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="text-lg font-bold text-slate-900 capitalize tracking-tight">{title}</h3>
+                <button 
+                  onClick={() => setViewingSubPage(title)}
+                  className="text-xs font-bold text-indigo-600 hover:text-indigo-700 capitalize tracking-tight"
+                >
+                  See All
+                </button>
+              </div>
+              
+              {/* Horizontal Scroll */}
+              <div className="flex overflow-x-auto gap-3 pb-6 -m-2 p-2 snap-x no-scrollbar">
+                {items.slice(0, 5).map((item) => (
+                  <div key={item.id} className="snap-start">
+                    <ProductCard item={item} minimal={true} />
+                  </div>
+                ))}
+                {items.length > 5 && (
+                  <button 
+                    onClick={() => setViewingSubPage(title)}
+                    className="min-w-[100px] flex flex-col items-center justify-center rounded-2xl bg-slate-50 border border-slate-100 text-slate-400 font-bold text-xs hover:bg-slate-100 snap-start capitalize tracking-tight h-[150px]"
+                  >
+                    <span>+{items.length - 5} more</span>
+                  </button>
+                )}
+              </div>
+            </section>
+          ))}
+        </div>
       )}
     </div>
   );

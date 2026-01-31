@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom'; 
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from './firebase';
@@ -6,31 +7,33 @@ import { db } from './firebase';
 // Components
 import { Header } from './components/Header';
 import Dashboard from './components/Dashboard';
-import { GuestDashboard } from './components/GuestDashboard'; // Ensure this path matches your file structure
+import { GuestDashboard } from './components/GuestDashboard'; 
 import { RestaurantExplorer } from './components/RestaurantExplorer';
 import { Recipes } from './components/Recipes';
+import { RecipeDetail } from './components/RecipeDetail'; 
 import { Blog } from './components/Blog';
 import Settings from './components/settings';
 import Onboarding from './components/Onboarding';
 import Login from './components/Login';
-import { RestaurantMenu } from './components/RestaurantMenu';
+import RestaurantMenu from './components/RestaurantMenu';
 
-function App() {
+function AppContent() {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   
   // Loading States
   const [authLoading, setAuthLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(true);
-  const [minLoadComplete, setMinLoadComplete] = useState(false); // NEW: Enforces animation duration
+  const [minLoadComplete, setMinLoadComplete] = useState(false);
 
   const [isGuest, setIsGuest] = useState(false);
-  const [view, setView] = useState('dashboard');
   const [isSearching, setIsSearching] = useState(false);
   const [dashboardLocation, setDashboardLocation] = useState(null);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
 
-  // 1. Enforce Splash Screen Minimum Duration (2.5s)
+  const location = useLocation();
+  const navigate = useNavigate();
+
   useEffect(() => {
     const timer = setTimeout(() => {
       setMinLoadComplete(true);
@@ -38,7 +41,6 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
 
-  // 2. Firebase Auth Listener
   useEffect(() => {
     const auth = getAuth();
     const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
@@ -55,7 +57,6 @@ function App() {
     return () => unsubscribeAuth();
   }, []);
 
-  // 3. User Profile Listener
   useEffect(() => {
     if (!user) return;
     setProfileLoading(true);
@@ -76,21 +77,22 @@ function App() {
 
   const handleOpenMenu = (restaurant) => {
     setSelectedRestaurant(restaurant);
-    setView('restaurant-menu');
+    navigate('/restaurant'); 
   };
 
   const getHeaderTitle = () => {
-    if (view === 'dashboard') return 'Safespoon';
-    if (view === 'find') return 'Explore';
-    if (view === 'cook') return 'Recipes';
-    if (view === 'feed') return 'Blog';
-    if (view === 'settings') return 'Settings';
-    if (view === 'restaurant-menu') return selectedRestaurant?.name || 'Menu';
+    const path = location.pathname;
+    if (path === '/') return 'Safespoon';
+    if (path === '/explore') return 'Explore';
+    if (path === '/recipes') return 'Recipes';
+    if (path.startsWith('/recipe/')) return 'Recipe Details';
+    if (path === '/blog') return 'Articles & Blog';
+    if (path === '/account') return 'Settings';
+    if (path === '/restaurant') return selectedRestaurant?.name || 'Product Details';
     return 'Safespoon';
   };
 
   // --- SPLASH SCREEN RENDER ---
-  // Only remove splash screen when Auth is done AND the animation timer (2.5s) is finished
   if (!minLoadComplete || authLoading || (user && profileLoading)) {
     const letters = "Safespoon".split("");
     return (
@@ -131,33 +133,55 @@ function App() {
   }
 
   if (!userProfile || !userProfile.onboardingComplete) {
-      return <Onboarding onComplete={() => setView('dashboard')} />;
+      return <Onboarding onComplete={() => navigate('/')} />;
   }
 
-  // Authenticated View
+  const isMenu = location.pathname === '/restaurant';
+  const isDashboard = location.pathname === '/';
+
   return (
     <div className={`min-h-screen bg-white ${isSearching ? 'overflow-hidden' : ''}`}>
-       <div className={isSearching || view === 'restaurant-menu' ? "hidden" : ""}>
+       
+       {/* Sticky Header Container 
+          - HIDDEN on Dashboard (isDashboard) so the custom dashboard header takes over
+       */}
+       <div className={`${isSearching || isMenu || isDashboard ? "hidden" : ""} sticky top-0 z-50 bg-white border-b border-slate-50 transition-all`}>
+            
+            {/* Desktop Header */}
             <div className="hidden md:block">
                 <Header 
                     userPhoto={user.photoURL} 
-                    setView={setView} 
+                    setView={(path) => navigate(path === 'dashboard' ? '/' : `/${path}`)} 
                     title={getHeaderTitle()} 
-                    isDashboard={view === 'dashboard'}
-                    locationElement={view === 'dashboard' ? dashboardLocation : null}
+                    isDashboard={location.pathname === '/'}
+                    locationElement={location.pathname === '/' ? dashboardLocation : null}
                 />
             </div>
-            <div className="md:hidden pt-6 px-6 pb-2 flex justify-between items-center bg-white sticky top-0 z-40">
+            
+            {/* Mobile Header */}
+            <div className="md:hidden pt-6 px-6 pb-4 flex justify-between items-center bg-white">
                 <div className="flex items-center gap-2">
-                  <span className={`text-2xl font-black tracking-tighter ${view === 'dashboard' ? 'text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 font-["Host_Grotesk"]' : 'text-gray-900 font-["Host_Grotesk"]'}`}>
+                  {/* Back button logic */}
+                  {location.pathname.startsWith('/recipe/') && (
+                      <button onClick={() => navigate('/recipes')} className="mr-2 text-slate-400">
+                          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
+                      </button>
+                  )}
+                  
+                  <span className={`text-3xl font-bold tracking-tighter ${
+                      location.pathname === '/' 
+                      ? 'text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600 font-["Host_Grotesk"]' 
+                      : 'text-slate-700 font-["Switzer"]'
+                  }`}>
                       {getHeaderTitle()}
                   </span>
                 </div>
+                
                 <div className="flex items-center">
-                  {view === 'dashboard' ? (
+                  {location.pathname === '/' ? (
                     dashboardLocation
                   ) : (
-                    <div className="h-8 w-8 rounded-full bg-slate-100 overflow-hidden cursor-pointer shadow-sm border border-white" onClick={() => setView('settings')}>
+                    <div className="h-9 w-9 rounded-full bg-slate-100 overflow-hidden cursor-pointer shadow-sm border border-white" onClick={() => navigate('/account')}>
                         {user.photoURL ? <img src={user.photoURL} alt="Profile" className="h-full w-full object-cover" /> : <div className="h-full w-full flex items-center justify-center text-xs font-bold text-slate-400 font-['Host_Grotesk']">?</div>}
                     </div>
                   )}
@@ -165,41 +189,53 @@ function App() {
             </div>
        </div>
 
-       <main className={isSearching ? "w-full h-full p-0 m-0 fixed inset-0 z-[9998]" : (view === 'dashboard' || view === 'restaurant-menu' ? "w-full pt-0" : "px-4 md:px-8 max-w-7xl mx-auto pt-2")}>
-          {view === 'dashboard' && (
-              <Dashboard 
-                setView={setView} 
-                profile={userProfile} 
-                onOpenMenu={handleOpenMenu} 
-                setIsSearching={setIsSearching} 
-                isSearching={isSearching}
-                setDashboardLocation={setDashboardLocation}
-              />
-          )}
-          {view === 'restaurant-menu' && (
-            <RestaurantMenu 
-              restaurant={selectedRestaurant} 
-              onBack={() => setView('dashboard')} 
-              userProfile={userProfile} 
-            />
-          )}
-          {view === 'find' && <RestaurantExplorer userProfile={userProfile} onOpenMenu={handleOpenMenu} />}
-          {view === 'cook' && <Recipes userProfile={userProfile} />}
-          {view === 'feed' && <Blog />}
-          {view === 'settings' && <Settings />}
+       {/* Main Content */}
+       <main className={isSearching ? "w-full h-full p-0 m-0 fixed inset-0 z-[9998]" : (isDashboard || isMenu ? "w-full pt-0" : "px-4 md:px-8 max-w-7xl mx-auto pt-4")}>
+          <Routes>
+              <Route path="/" element={
+                  <Dashboard 
+                    setView={(view) => navigate(view === 'dashboard' ? '/' : `/${view}`)} 
+                    profile={userProfile} 
+                    onOpenMenu={handleOpenMenu} 
+                    setIsSearching={setIsSearching} 
+                    isSearching={isSearching}
+                    setDashboardLocation={setDashboardLocation}
+                  />
+              } />
+              <Route path="/explore" element={<RestaurantExplorer userProfile={userProfile} onOpenMenu={handleOpenMenu} />} />
+              <Route path="/recipes" element={<Recipes userProfile={userProfile} />} />
+              <Route path="/recipe/:id" element={<RecipeDetail userProfile={userProfile} />} />
+              <Route path="/blog" element={<Blog />} />
+              <Route path="/account" element={<Settings />} />
+              
+              <Route path="/restaurant" element={
+                <RestaurantMenu 
+                    restaurant={selectedRestaurant} 
+                    onBack={() => navigate('/explore')} 
+                    userProfile={userProfile} 
+                />
+              } />
+              
+              <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
        </main>
 
-       {!isSearching && view !== 'restaurant-menu' && (
+       {/* Mobile Tab Bar */}
+       {!isSearching && !isMenu && !location.pathname.startsWith('/recipe/') && (
            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-slate-100 px-6 py-4 flex justify-between items-center shadow-[0_-4px_20px_rgba(0,0,0,0.02)] safe-area-pb">
               {[
-                { id: 'dashboard', label: 'Home', icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
-                { id: 'find', label: 'Explore', icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
-                { id: 'cook', label: 'Recipes', icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
-                { id: 'feed', label: 'Blog', icon: "M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" },
-                { id: 'settings', label: 'Account', icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
+                { path: '/', label: 'Home', icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" },
+                { path: '/explore', label: 'Explore', icon: "M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" },
+                { path: '/recipes', label: 'Recipes', icon: "M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" },
+                { path: '/blog', label: 'Blog', icon: "M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z" },
+                { path: '/account', label: 'Account', icon: "M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" },
               ].map((item) => (
-                <button key={item.id} onClick={() => setView(item.id)} className={`flex flex-col items-center gap-1.5 transition-all duration-300 relative ${view === item.id ? 'text-violet-600' : 'text-slate-400'}`}>
-                  {view === item.id && <span className="absolute -top-4 w-8 h-1 bg-violet-600 rounded-b-full"></span>}
+                <button 
+                    key={item.path} 
+                    onClick={() => navigate(item.path)} 
+                    className={`flex flex-col items-center gap-1.5 transition-all duration-300 relative ${location.pathname === item.path ? 'text-violet-600' : 'text-slate-400'}`}
+                >
+                  {location.pathname === item.path && <span className="absolute -top-4 w-8 h-1 bg-violet-600 rounded-b-full"></span>}
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon} /></svg>
                   <span className="text-[10px] font-bold tracking-wide font-['Host_Grotesk']">{item.label}</span>
                 </button>
@@ -208,6 +244,14 @@ function App() {
        )}
     </div>
   );
+}
+
+function App() {
+    return (
+        <Router>
+            <AppContent />
+        </Router>
+    );
 }
 
 export default App;

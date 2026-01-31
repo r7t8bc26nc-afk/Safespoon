@@ -1,5 +1,29 @@
-@import url('https://fonts.googleapis.com/css2?family=Host+Grotesk:wght@600&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  /* 1. Base Font Setup */
+  html, body {
+    font-family: 'Switzer', sans-serif;
+    @apply text-slate-900 antialiased;
+  }
+
+  /* 2. Headings: Defined individually to prevent errors */
+  h1 { 
+    @apply text-4xl font-bold text-slate-900 tracking-tighter mb-4; 
+  }
+  
+  h2 { 
+    @apply text-3xl font-semibold text-slate-900 tracking-tight mb-3; 
+  }
+  
+  h3 { 
+    @apply text-2xl font-medium text-slate-900 tracking-tight mb-2; 
+  }
+
+  /* 3. Form Elements Fix */
+  input, textarea, button, select {
+    font-family: 'Switzer', sans-serif !important;
+  }
+}

@@ -10,7 +10,7 @@ export const Header = ({ userPhoto, onLogout, setView, title = "Discover" }) => 
             <h1 className="text-3xl font-black text-gray-900 tracking-tight leading-none mb-1">
                 {title}
             </h1>
-            <p className="hidden md:block text-gray-400 font-bold text-[10px] uppercase tracking-widest">
+            <p className="hidden md:block text-gray-400 font-bold text-[10px] capitalize tracking-widest">
                 Safespoon Dashboard
             </p>
          </div>

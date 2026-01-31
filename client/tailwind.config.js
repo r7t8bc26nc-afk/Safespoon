@@ -7,18 +7,10 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
-      },
-      colors: { 
-        surface: "#F5F3FF", 
-        brand: { 
-            dark: "#1E1B4B",   
-            primary: "#8B5CF6", 
-            secondary: "#A78BFA",
-            accent: "#F59E0B", 
-            success: "#10B981",
-            white: "#FFFFFF"
-        }
+        // 'Switzer' matches the name Fontshare gives the font
+        sans: ['Switzer', 'sans-serif'],
+        // 'Host Grotesk' matches the name Google gives the font
+        host: ['"Host Grotesk"', 'sans-serif'],
       },
     },
   },
