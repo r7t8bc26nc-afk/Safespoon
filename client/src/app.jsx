@@ -233,9 +233,12 @@ function AppContent() {
                 <button 
                     key={item.path} 
                     onClick={() => navigate(item.path)} 
-                    className={`flex flex-col items-center gap-1.5 transition-all duration-300 relative ${location.pathname === item.path ? 'text-violet-600' : 'text-slate-400'}`}
+                    className={`flex flex-col items-center gap-1.5 transition-all duration-300 relative ${location.pathname === item.path ? 'text-slate-800' : 'text-slate-400'}`}
                 >
-                  {location.pathname === item.path && <span className="absolute -top-4 w-8 h-1 bg-violet-600 rounded-b-full"></span>}
+                  {/* Updated Active Border: Wider rectangle in slate-800 */}
+                  {location.pathname === item.path && (
+                      <span className="absolute -top-4 w-16 h-1.5 bg-slate-800 rounded-b-sm shadow-sm"></span>
+                  )}
                   <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d={item.icon} /></svg>
                   <span className="text-[10px] font-bold tracking-wide font-['Host_Grotesk']">{item.label}</span>
                 </button>
