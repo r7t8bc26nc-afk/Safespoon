@@ -241,41 +241,61 @@ const NutrientRow = ({ label, value, max, unit }) => {
 // --- BARCODE SCANNER (html5-qrcode) ---
 const BarcodeScanner = ({ onResult, onClose }) => {
     const scannerId = "safespoon-barcode-reader";
-    const scannerRef = useRef(null);
-    const [status, setStatus] = useState("Align barcode in frame");
+    const [status, setStatus] = useState("Initializing camera...");
     const [isFlash, setIsFlash] = useState(false);
+    
+    // We use a ref to track if the scanner is currently running to prevent double-starts
+    const scannerRef = useRef(null);
 
     useEffect(() => {
-        const html5QrCode = new Html5Qrcode(scannerId);
-        scannerRef.current = html5QrCode;
+        // Delay initialization slightly to ensure DOM element exists
+        const timer = setTimeout(() => {
+            if (scannerRef.current) return; // Already initialized
 
-        const config = { 
-            fps: 20, 
-            qrbox: { width: 280, height: 160 }, 
-            formatsToSupport: [ 
-                Html5QrcodeSupportedFormats.UPC_A, 
-                Html5QrcodeSupportedFormats.UPC_E, 
-                Html5QrcodeSupportedFormats.EAN_13, 
-                Html5QrcodeSupportedFormats.EAN_8
-            ]
-        };
+            const html5QrCode = new Html5Qrcode(scannerId);
+            scannerRef.current = html5QrCode;
 
-        html5QrCode.start(
-            { facingMode: "environment" }, 
-            config, 
-            (decodedText) => {
-                if (navigator.vibrate) navigator.vibrate(200);
-                html5QrCode.stop().then(() => onResult(decodedText));
-            },
-            (errorMessage) => { }
-        ).catch(err => {
-            console.error("Camera start failed", err);
-            setStatus("Camera Access Denied");
-        });
+            const config = { 
+                fps: 20, 
+                qrbox: { width: 250, height: 150 }, 
+                aspectRatio: 1.0,
+                formatsToSupport: [ 
+                    Html5QrcodeSupportedFormats.UPC_A, 
+                    Html5QrcodeSupportedFormats.UPC_E, 
+                    Html5QrcodeSupportedFormats.EAN_13, 
+                    Html5QrcodeSupportedFormats.EAN_8
+                ]
+            };
 
+            html5QrCode.start(
+                { facingMode: "environment" }, 
+                config, 
+                (decodedText) => {
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    // Stop scanning and return result
+                    html5QrCode.stop().then(() => {
+                        scannerRef.current = null;
+                        onResult(decodedText);
+                    }).catch(err => console.error("Failed to stop scanner", err));
+                },
+                (errorMessage) => { 
+                    // scanning... 
+                }
+            ).then(() => {
+                setStatus("Align barcode in frame");
+            }).catch(err => {
+                console.error("Camera start failed", err);
+                setStatus("Camera Access Denied or Unavailable");
+            });
+        }, 300);
+
+        // Cleanup function
         return () => {
-            if (html5QrCode.isScanning) {
-                html5QrCode.stop().catch(e => console.error("Stop failed", e));
+            clearTimeout(timer);
+            if (scannerRef.current && scannerRef.current.isScanning) {
+                scannerRef.current.stop().then(() => {
+                    scannerRef.current = null;
+                }).catch(err => console.error("Failed to stop scanner on unmount", err));
             }
         };
     }, [onResult]);
@@ -283,12 +303,14 @@ const BarcodeScanner = ({ onResult, onClose }) => {
     const handleManualCapture = () => {
         setIsFlash(true);
         setTimeout(() => setIsFlash(false), 150);
-        setStatus("Analyzing frame...");
+        setStatus("Capturing...");
         if (navigator.vibrate) navigator.vibrate(50);
+        // In a real app, you might grab a frame here, but for QR lib we just let it scan
     };
 
     return (
         <div className="fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center font-['Switzer']">
+            {/* Camera Viewport */}
             <div id={scannerId} className="w-full h-full object-cover" />
             
             <AnimatePresence>
@@ -302,33 +324,27 @@ const BarcodeScanner = ({ onResult, onClose }) => {
                 )}
             </AnimatePresence>
 
+            {/* Overlay UI */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <div className="w-72 h-44 border-2 border-white/40 rounded-xl relative shadow-2xl">
+                <div className="w-72 h-44 border-2 border-white/40 rounded-xl relative shadow-2xl overflow-hidden">
                     <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl"></div>
+                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl"></div>
+                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl"></div>
                     <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-xl"></div>
                     <div className="absolute top-1/2 left-4 right-4 h-px bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
                 </div>
             </div>
 
-            <div className="absolute bottom-0 left-0 right-0 p-10 flex flex-col items-center gap-6">
-                <p className="text-white text-[10px] font-black uppercase tracking-widest bg-black/40 px-4 py-1.5 rounded-full">{status}</p>
+            <div className="absolute bottom-0 left-0 right-0 p-10 flex flex-col items-center gap-6 pointer-events-auto">
+                <p className="text-white text-[10px] font-black uppercase tracking-widest bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">{status}</p>
                 
                 <div className="flex items-center gap-12">
                     <button 
                         onClick={onClose} 
-                        className="text-white font-bold text-xs uppercase tracking-widest px-4"
+                        className="text-white font-bold text-xs uppercase tracking-widest px-4 py-2 bg-white/10 rounded-full backdrop-blur-md"
                     >
                         Cancel
                     </button>
-
-                    <button 
-                        onClick={handleManualCapture}
-                        className="w-20 h-20 bg-white rounded-full border-4 border-slate-400 shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
-                    >
-                        <div className="w-16 h-16 rounded-full border-2 border-slate-900" />
-                    </button>
-
-                    <div className="w-16" /> 
                 </div>
             </div>
         </div>
@@ -665,7 +681,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
 
   const handleAddToIntake = async () => {
     const base = selectedProduct.coreMetrics;
-    const scaled = {};
+    const trackedMetrics = {}; // Initialize trackedMetrics
     Object.keys(base).forEach(key => {
         const val = base[key]?.amount;
         trackedMetrics[key] = { amount: typeof val === 'number' ? Math.round(val * portionSize) : 0 };
@@ -708,7 +724,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
     }
     const timeoutId = setTimeout(async () => {
         setIsApiLoading(true);
-        setSearchError(null);
+        //setSearchError(null); // Removed undefined state
         try {
             const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(searchQuery)}&pageSize=8&dataType=Branded,Foundation`);
             const data = await res.json();
@@ -722,7 +738,9 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
                     isExternal: true
                 })));
             }
-        } catch (e) { setSearchError("Connection to USDA failed."); } 
+        } catch (e) { 
+            console.error("Connection to USDA failed."); 
+        } 
         finally { setIsApiLoading(false); }
     }, 500);
     return () => clearTimeout(timeoutId);
