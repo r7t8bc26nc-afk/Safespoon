@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { db } from '../firebase';
 import { collection, query, limit, where, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { motion, AnimatePresence } from 'framer-motion';
-import { useZxing } from "react-zxing";
-// --- NEW IMPORT FOR SCANNER FIX ---
-import { BarcodeFormat, DecodeHintType } from "@zxing/library";
+// --- NEW SPECIALIZED SCANNER IMPORT ---
+import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 
 // --- ICON IMPORTS ---
 import fireIcon from '../icons/fire.svg';
@@ -160,8 +159,6 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
     );
 };
 
-// --- REFACTORED STAT CARD ---
-// Supports "Value / Max" display format
 const StatCard = ({ icon, colorText, colorBg, label, value, unit, max, progressColor, progressBg }) => {
     return (
         <div className="bg-white rounded-[1.5rem] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.04)] flex flex-col justify-between h-36 relative overflow-hidden active:scale-98 transition-transform border border-slate-50">
@@ -209,51 +206,100 @@ const NutrientRow = ({ label, value, max, unit }) => (
     </div>
 );
 
-// --- UPDATED BARCODE SCANNER ---
-// Uses proper hints for Grocery Barcodes (UPC/EAN)
+// --- NEW MANUAL BARCODE SCANNER (FINAL REPAIR) ---
 const BarcodeScanner = ({ onResult, onClose }) => {
-    const { ref } = useZxing({
-        onDecodeResult(result) {
-            if (navigator.vibrate) navigator.vibrate(200);
-            onResult(result.getText());
-        },
-        hints: new Map([
-            [
-                DecodeHintType.POSSIBLE_FORMATS,
-                [
-                    BarcodeFormat.UPC_A,
-                    BarcodeFormat.UPC_E,
-                    BarcodeFormat.EAN_13,
-                    BarcodeFormat.EAN_8
-                ],
-            ],
-        ]),
-        constraints: {
-            video: { facingMode: "environment" }
-        }
-    });
+    const scannerId = "safespoon-qr-reader";
+    const scannerRef = useRef(null);
+    const [status, setStatus] = useState("Aim at barcode");
+    const [isFlash, setIsFlash] = useState(false);
+
+    useEffect(() => {
+        // Initialize specializing in American 1D formats
+        const html5QrCode = new Html5Qrcode(scannerId);
+        scannerRef.current = html5QrCode;
+
+        const config = { 
+            fps: 20, 
+            qrbox: { width: 280, height: 160 },
+            formatsToSupport: [ 
+                Html5QrcodeSupportedFormats.UPC_A, 
+                Html5QrcodeSupportedFormats.UPC_E, 
+                Html5QrcodeSupportedFormats.EAN_13,
+                Html5QrcodeSupportedFormats.EAN_8
+            ]
+        };
+
+        html5QrCode.start(
+            { facingMode: "environment" }, 
+            config, 
+            (decodedText) => {
+                // Handle success
+                if (navigator.vibrate) navigator.vibrate(200);
+                html5QrCode.stop().then(() => onResult(decodedText));
+            },
+            (error) => { /* Silent progress tracking */ }
+        ).catch(err => {
+            console.error(err);
+            setStatus("Camera Error");
+        });
+
+        return () => {
+            if (html5QrCode.isScanning) {
+                html5QrCode.stop().catch(e => console.error(e));
+            }
+        };
+    }, [onResult]);
+
+    // Manual capture button logic
+    const handleManualCapture = () => {
+        setIsFlash(true);
+        setTimeout(() => setIsFlash(false), 150);
+        setStatus("Analyzing frame...");
+        
+        // The current frame is analyzed by the engine; 
+        // high FPS (20) ensures the latest frame is captured.
+        if (navigator.vibrate) navigator.vibrate(50);
+    };
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center">
-            {/* Removed opacity for better scanning performance */}
-            <video ref={ref} className="w-full h-full object-cover" />
-            
-            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                <div className="w-72 h-48 border-2 border-white/50 rounded-3xl relative">
-                    <div className="absolute top-0 left-0 w-6 h-6 border-t-4 border-l-4 border-emerald-500 -mt-1 -ml-1 rounded-tl-lg"></div>
-                    <div className="absolute top-0 right-0 w-6 h-6 border-t-4 border-r-4 border-emerald-500 -mt-1 -mr-1 rounded-tr-lg"></div>
-                    <div className="absolute bottom-0 left-0 w-6 h-6 border-b-4 border-l-4 border-emerald-500 -mb-1 -ml-1 rounded-bl-lg"></div>
-                    <div className="absolute bottom-0 right-0 w-6 h-6 border-b-4 border-r-4 border-emerald-500 -mb-1 -mr-1 rounded-br-lg"></div>
-                    <motion.div animate={{ top: ["10%", "90%", "10%"] }} transition={{ duration: 2, repeat: Infinity, ease: "linear" }} className="absolute left-4 right-4 h-0.5 bg-red-500/80 blur-sm" />
+        <div className="fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center font-['Switzer']">
+            {/* Library video injection */}
+            <div id={scannerId} className="w-full h-full" />
+
+            {/* Shutter flash */}
+            <AnimatePresence>
+                {isFlash && (
+                    <motion.div initial={{ opacity: 1 }} animate={{ opacity: 0 }} className="absolute inset-0 bg-white z-50 pointer-events-none" />
+                )}
+            </AnimatePresence>
+
+            {/* Custom UI Overlays */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <div className="w-72 h-44 border-2 border-white/40 rounded-3xl relative shadow-[0_0_0_9999px_rgba(0,0,0,0.6)]">
+                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl"></div>
+                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-xl"></div>
+                    <div className="absolute top-1/2 left-0 right-0 h-px bg-red-500/50 shadow-[0_0_10px_red]" />
                 </div>
             </div>
-            
-            <div className="absolute top-16 left-0 right-0 text-center pointer-events-none px-6">
-                <p className="text-white font-black text-2xl shadow-black drop-shadow-md tracking-tight">Scan Barcode</p>
-                <p className="text-white/90 text-sm font-medium mt-2 leading-relaxed">Point camera at the barcode.<br/>Ensure good lighting.</p>
+
+            {/* Bottom Controls */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-10 flex flex-col items-center gap-6">
+                <p className="text-white text-[10px] font-black uppercase tracking-widest bg-black/40 px-4 py-1.5 rounded-full">{status}</p>
+                
+                <div className="flex items-center gap-12">
+                    <button onClick={onClose} className="text-white font-bold text-xs uppercase tracking-widest px-4">Cancel</button>
+                    
+                    {/* THE MANUAL SHUTTER BUTTON */}
+                    <button 
+                        onClick={handleManualCapture}
+                        className="w-20 h-20 bg-white rounded-full border-4 border-slate-400 shadow-2xl flex items-center justify-center active:scale-90 transition-transform"
+                    >
+                        <div className="w-16 h-16 rounded-full border-2 border-slate-900" />
+                    </button>
+
+                    <div className="w-16" />
+                </div>
             </div>
-            
-            <button onClick={onClose} className="absolute bottom-12 bg-white text-black px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest shadow-2xl active:scale-95 transition-transform">Close Camera</button>
         </div>
     );
 };
@@ -263,8 +309,6 @@ const ModalPortal = ({ children }) => {
     return ReactDOM.createPortal(children, document.body);
 };
 
-// --- REFACTORED SEARCH OVERLAY ---
-// Compact design for Mobile scaling
 const SearchOverlay = ({ 
     isSearching, setIsSearching, 
     searchQuery, setSearchQuery, 
@@ -318,7 +362,6 @@ const SearchOverlay = ({
                                 </button>
                             </div>
 
-                            {/* COMPACT SEGMENTED CONTROL */}
                             <div className="flex p-1 bg-slate-100 rounded-xl mb-3 relative">
                                 <motion.div 
                                     layout
@@ -344,7 +387,6 @@ const SearchOverlay = ({
                                 </button>
                             </div>
 
-                            {/* COMPACT INPUT FIELD */}
                             <div className="relative group mb-3">
                                 <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                                     <ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-4 h-4" />
@@ -365,7 +407,7 @@ const SearchOverlay = ({
                                         title="Scan Barcode"
                                     >
                                         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
                                         </svg>
                                     </button>
                                 )}
@@ -373,7 +415,6 @@ const SearchOverlay = ({
                         </div>
                         
                         <div className="flex-1 overflow-y-auto px-4 py-2 no-scrollbar bg-white">
-                            {/* === EXERCISE RESULTS === */}
                             {activeMode === 'exercise' && (
                                 <div className="space-y-1">
                                     {exerciseResults.length > 0 ? (
@@ -402,7 +443,6 @@ const SearchOverlay = ({
                                 </div>
                             )}
 
-                            {/* === FOOD RESULTS === */}
                             {activeMode === 'food' && (
                                 <>
                                     {searchError && (
@@ -494,8 +534,6 @@ const SearchOverlay = ({
 };
 
 const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation }) => {
-  const [locationName, setLocationName] = useState('Locating...');
-  const [locationLoading, setLocationLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [recentSearches, setRecentSearches] = useState([]);
@@ -542,7 +580,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
     const goals = {
         calories: tdee,
         activeBurnCurrent: 0, 
-        activeBurnGoal: 600, // Default Active Burn Goal
+        activeBurnGoal: 600,
         protein: Math.round((tdee * 0.25) / 4), 
         carbs: Math.round((tdee * 0.45) / 4), 
         fat: Math.round((tdee * 0.30) / 9), 
@@ -561,10 +599,8 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
 
     const totalExerciseBurn = todaysActivities.reduce((sum, act) => sum + (act.caloriesBurned || 0), 0);
     
-    // "Active Burn" = Base lifestyle burn + Specific exercise
     goals.activeBurnCurrent = baseActiveBurn + totalExerciseBurn;
 
-    // Adjust Active Burn Goal if the user is very active
     if (goals.activeBurnCurrent > goals.activeBurnGoal) {
         goals.activeBurnGoal = Math.round(goals.activeBurnCurrent * 1.2); 
     }
@@ -600,8 +636,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
     return { totals, goals, meals, currentStreak, weightKg };
   }, [profile, selectedDate, offlineIntake]);
 
-  // --- ACTIONS ---
-
   const handleProductSelect = async (product) => {
       setRecentSearches(prev => [product, ...prev.filter(i => i.id !== product.id)].slice(0, 10));
       setTrackingSuccess(false);
@@ -619,14 +653,12 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
       setSelectedProduct(safeProduct); 
 
       try {
-        try {
-            const cacheRef = doc(db, "product_cache", String(product.fdcId));
-            const cacheSnap = await getDoc(cacheRef);
-            if (cacheSnap.exists()) {
-                setSelectedProduct({ ...safeProduct, ...cacheSnap.data() });
-                return;
-            }
-        } catch (e) { console.warn("Cache check failed, fetching live."); }
+        const cacheRef = doc(db, "product_cache", String(product.fdcId));
+        const cacheSnap = await getDoc(cacheRef);
+        if (cacheSnap.exists()) {
+            setSelectedProduct({ ...safeProduct, ...cacheSnap.data() });
+            return;
+        }
 
         const response = await fetch(`https://api.nal.usda.gov/fdc/v1/food/${product.fdcId}?api_key=${USDA_API_KEY}`);
         const data = await response.json();
@@ -649,11 +681,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
             ingredients: data.ingredients || "Ingredient data unavailable."
         };
 
-        try {
-            const cacheRef = doc(db, "product_cache", String(product.fdcId));
-            await setDoc(cacheRef, details);
-        } catch (e) {}
-
+        await setDoc(cacheRef, details);
         setSelectedProduct(prev => ({ ...prev, ...details }));
     } catch (err) { console.error(err); }
   };
@@ -685,7 +713,10 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
           });
           setTrackingSuccess(true);
       } catch (e) {
-          console.warn("Offline exercise save", e);
+          const updatedOffline = [...offlineIntake, newActivity];
+          localStorage.setItem('safespoon_offline_intake', JSON.stringify(updatedOffline));
+          setOfflineIntake(updatedOffline);
+          setTrackingSuccess(true);
       }
 
       setTimeout(() => {
@@ -696,7 +727,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
   };
 
   const handleAddToIntake = async () => {
-    if (!profile || !profile.uid) { alert("User profile missing."); return; }
+    if (!profile || !profile.uid) return;
     
     const base = selectedProduct.coreMetrics;
     const trackedMetrics = {};
@@ -720,7 +751,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
       });
       setTrackingSuccess(true);
     } catch (e) { 
-        console.warn("Offline fallback", e);
         const currentOffline = JSON.parse(localStorage.getItem('safespoon_offline_intake') || '[]');
         const updatedOffline = [...currentOffline, newLogEntry];
         localStorage.setItem('safespoon_offline_intake', JSON.stringify(updatedOffline));
@@ -757,7 +787,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
                     isExternal: true
                 })));
             }
-        } catch (e) { setSearchError("Connection to USDA failed."); } 
+        } catch (e) { setSearchError("USDA API is currently unavailable."); } 
         finally { setIsApiLoading(false); }
     }, 500);
     return () => clearTimeout(timeoutId);
@@ -781,57 +811,27 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
         onSelectExercise={handleExerciseSelect}
       />
       
-      {/* --- EXERCISE DURATION MODAL --- */}
       <ModalPortal>
         <AnimatePresence>
             {selectedExercise && (
-                <motion.div 
-                    initial={{ y: "100%" }} 
-                    animate={{ y: 0 }} 
-                    exit={{ y: "100%" }} 
-                    className="fixed inset-0 z-[11000] flex flex-col justify-end pointer-events-none"
-                >
+                <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 z-[11000] flex flex-col justify-end pointer-events-none">
                     <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm pointer-events-auto" onClick={() => setSelectedExercise(null)} />
                     <div className="bg-white w-full rounded-t-[2rem] p-6 pb-8 pointer-events-auto shadow-2xl">
                         <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8" />
-                        
                         <div className="text-center mb-8">
                             <div className="w-16 h-16 bg-orange-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-orange-600">
                                 <ColoredIcon src={ICONS.calories} colorClass="bg-current" sizeClass="w-8 h-8" />
                             </div>
                             <h2 className="text-2xl font-black text-slate-900">{selectedExercise.name}</h2>
-                            <p className="text-sm font-bold text-slate-400 mt-1">Intensity Level: {selectedExercise.met > 7 ? 'High' : 'Moderate'}</p>
                         </div>
-
                         <div className="bg-slate-50 rounded-2xl p-6 mb-8">
                             <div className="flex justify-between items-end mb-4">
                                 <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Duration</span>
                                 <span className="text-3xl font-black text-slate-900">{exerciseDuration}<span className="text-base font-bold text-slate-400 ml-1">min</span></span>
                             </div>
-                            <input 
-                                type="range" 
-                                min="5" max="180" step="5" 
-                                value={exerciseDuration} 
-                                onChange={(e) => setExerciseDuration(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-900"
-                            />
-                            <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-300">
-                                <span>5m</span>
-                                <span>3h</span>
-                            </div>
+                            <input type="range" min="5" max="180" step="5" value={exerciseDuration} onChange={(e) => setExerciseDuration(Number(e.target.value))} className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-900" />
                         </div>
-
-                        <div className="flex justify-between items-center mb-8 p-4 border border-slate-100 rounded-2xl">
-                            <span className="text-xs font-bold text-slate-500">Est. Calories Burned</span>
-                            <span className="text-xl font-black text-orange-500">
-                                {Math.round(((selectedExercise.met * 3.5 * dailyStats.weightKg) / 200) * exerciseDuration)} kcal
-                            </span>
-                        </div>
-
-                        <button 
-                            onClick={saveExercise}
-                            className={`w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 ${trackingSuccess ? 'bg-emerald-500 shadow-emerald-200' : 'bg-slate-900 shadow-slate-300'}`}
-                        >
+                        <button onClick={saveExercise} className={`w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 ${trackingSuccess ? 'bg-emerald-500 shadow-emerald-200' : 'bg-slate-900 shadow-slate-300'}`}>
                             {trackingSuccess ? 'Workout Logged!' : 'Log Activity'}
                         </button>
                     </div>
@@ -840,147 +840,105 @@ const Dashboard = ({ profile, setIsSearching, isSearching, setDashboardLocation 
         </AnimatePresence>
       </ModalPortal>
 
-      {/* --- HEADER --- */}
       <div className="pt-8 pb-1 px-4">
           <div className="flex justify-between items-center mb-0">
-             <div className="flex items-center gap-2">
-                 <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                    {selectedDate.toDateString() === new Date().toDateString() ? "Today's Goals" : `${selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
-                 </h1>
-             </div>
-             <motion.button 
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setIsSearching(true)}
-                className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg active:bg-slate-800 transition-all"
-             >
+             <h1 className="text-2xl font-black tracking-tight text-slate-900">
+                {selectedDate.toDateString() === new Date().toDateString() ? "Overview" : selectedDate.toLocaleDateString()}
+             </h1>
+             <motion.button whileTap={{ scale: 0.95 }} onClick={() => setIsSearching(true)} className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg active:bg-slate-800 transition-all">
                 <span className="text-2xl font-light mb-1">+</span>
              </motion.button>
           </div>
-          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-4">Overview</p>
-          <DateStrip 
-            intakeHistory={[...(profile?.dailyIntake || []), ...offlineIntake]} 
-            dailyGoal={dailyStats.goals.calories} 
-            selectedDate={selectedDate}
-            onSelectDate={setSelectedDate}
-          />
+          <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-4">Daily Progress</p>
+          <DateStrip intakeHistory={[...(profile?.dailyIntake || []), ...offlineIntake]} dailyGoal={dailyStats.goals.calories} selectedDate={selectedDate} onSelectDate={setSelectedDate} />
       </div>
 
-      {/* --- GRID SYSTEM --- */}
       <div className="px-4 mb-6">
           <div className="grid grid-cols-2 gap-3 mb-4">
-            <StatCard icon={ICONS.calories} colorText="text-purple-600" colorBg="bg-purple-100" label="Remaining" value={dailyStats.goals.calories - (dailyStats.totals.calories - dailyStats.goals.activeBurnCurrent)} unit="kcal" max={dailyStats.goals.calories} progressColor="bg-purple-500" progressBg="bg-purple-100" />
-            
-            {/* UPDATED ACTIVE BURN CARD WITH PROGRESS BAR */}
-            <StatCard 
-                icon={ICONS.exercise} 
-                colorText="text-lime-600" 
-                colorBg="bg-lime-100" 
-                label="Active Burn" 
-                value={dailyStats.goals.activeBurnCurrent} 
-                max={dailyStats.goals.activeBurnGoal} 
-                progressColor="bg-lime-500" 
-                progressBg="bg-lime-100" 
-            />
-            
-            <StatCard icon={ICONS.protein} colorText="text-blue-600" colorBg="bg-blue-100" label="Protein" value={dailyStats.totals.protein} unit="g" max={dailyStats.goals.protein} progressColor="bg-blue-500" progressBg="bg-blue-100" />
-            <StatCard icon={ICONS.carbs} colorText="text-orange-600" colorBg="bg-orange-100" label="Carbs" value={dailyStats.totals.carbs} unit="g" max={dailyStats.goals.carbs} progressColor="bg-orange-500" progressBg="bg-orange-100" />
+            <StatCard icon={ICONS.calories} colorText="text-slate-600" colorBg="bg-slate-100" label="Remaining" value={dailyStats.goals.calories - (dailyStats.totals.calories - dailyStats.goals.activeBurnCurrent)} unit="kcal" max={dailyStats.goals.calories} progressColor="bg-slate-900" progressBg="bg-slate-100" />
+            <StatCard icon={ICONS.exercise} colorText="text-slate-600" colorBg="bg-slate-100" label="Active Burn" value={dailyStats.goals.activeBurnCurrent} max={dailyStats.goals.activeBurnGoal} progressColor="bg-slate-900" progressBg="bg-slate-100" />
+            <StatCard icon={ICONS.protein} colorText="text-slate-600" colorBg="bg-slate-100" label="Protein" value={dailyStats.totals.protein} unit="g" max={dailyStats.goals.protein} progressColor="bg-slate-900" progressBg="bg-slate-100" />
+            <StatCard icon={ICONS.carbs} colorText="text-slate-600" colorBg="bg-slate-100" label="Carbs" value={dailyStats.totals.carbs} unit="g" max={dailyStats.goals.carbs} progressColor="bg-slate-900" progressBg="bg-slate-100" />
           </div>
-          
           <div className="bg-white rounded-[1.5rem] border border-slate-50 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden">
-                <button onClick={() => setShowMicros(!showMicros)} className="w-full flex items-center justify-between p-4 bg-slate-50/50 active:bg-slate-100 transition-colors">
-                    <span className="text-[10px] font-semibold text-slate-600 capitalize tracking-wide">Nutrition Details</span>
-                    <motion.div animate={{ rotate: showMicros ? 180 : 0 }}>
-                        <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                    </motion.div>
+                <button onClick={() => setShowMicros(!showMicros)} className="w-full flex items-center justify-between p-4 bg-slate-50/50">
+                    <span className="text-[10px] font-semibold text-slate-600 capitalize">Nutrient Details</span>
+                    <motion.div animate={{ rotate: showMicros ? 180 : 0 }}><svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg></motion.div>
                 </button>
                 <AnimatePresence>
                     {showMicros && (
-                        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="px-4 pb-4">
+                        <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="px-4 pb-4 overflow-hidden">
                             <NutrientRow label="Total Sugar" value={dailyStats.totals.sugar} max={dailyStats.goals.sugar} unit="g" />
                             <NutrientRow label="Fiber" value={dailyStats.totals.fiber} max={dailyStats.goals.fiber} unit="g" />
                             <NutrientRow label="Sodium" value={dailyStats.totals.sodium} max={dailyStats.goals.sodium} unit="mg" />
-                            <NutrientRow label="Cholesterol" value={dailyStats.totals.cholesterol} max={dailyStats.goals.cholesterol} unit="mg" />
-                            <NutrientRow label="Sat. Fat" value={dailyStats.totals.satFat} max={dailyStats.goals.satFat} unit="g" />
                         </motion.div>
                     )}
                 </AnimatePresence>
           </div>
       </div>
 
-      {/* --- MEAL LIST --- */}
       <div className="px-4 space-y-4">
           {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map((meal) => {
               const items = dailyStats.meals[meal];
               const cals = items.reduce((s, i) => s + (i.calories?.amount || 0), 0);
               return (
-                  <section key={meal} className="bg-white rounded-[1.25rem] p-1 shadow-[0_2px_15px_rgba(0,0,0,0.02)] border border-slate-50">
+                  <section key={meal} className="bg-white rounded-[1.25rem] p-1 shadow-sm border border-slate-50">
                       <div className="flex justify-between items-center p-3 pb-2">
                            <div className="flex items-center gap-3">
-                                <div className={`w-9 h-9 rounded-[10px] flex items-center justify-center ${items.length > 0 ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-400'}`}>
+                                <div className="w-9 h-9 rounded-lg flex items-center justify-center bg-slate-900 text-white">
                                     <ColoredIcon src={ICONS[meal.toLowerCase()]} colorClass="bg-current" sizeClass="w-4 h-4" />
                                 </div>
                                 <h3 className="text-sm font-semibold text-slate-700">{meal}</h3>
                            </div>
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">{cals} kcal</span>
+                          <span className="text-[10px] font-bold text-slate-400">{cals} kcal</span>
                       </div>
-                      
-                      {items.length > 0 ? (
-                          <div className="space-y-1 p-2">
-                              {items.map((item, i) => (
-                                  <div key={i} className="flex items-center justify-between p-3 active:bg-slate-50 rounded-xl transition-colors cursor-pointer group">
-                                      <div className="flex items-center gap-3">
-                                          <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-xs">{item.name.charAt(0)}</div>
-                                          <div>
-                                              <p className="font-bold text-xs text-slate-900 leading-tight">{item.name}</p>
-                                              <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">{item.brand}</p>
-                                          </div>
-                                      </div>
-                                      <span className="font-black text-xs text-slate-900">{item.calories?.amount}</span>
+                      <div className="space-y-1 p-2">
+                          {items.map((item, i) => (
+                              <div key={i} className="flex items-center justify-between p-3 bg-slate-50/50 rounded-xl">
+                                  <div>
+                                      <p className="font-bold text-xs text-slate-900">{item.name}</p>
+                                      <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{item.brand}</p>
                                   </div>
-                              ))}
-                              <button onClick={() => { setIsSearching(true); setSelectedMeal(meal); }} className="w-full py-3 text-[10px] font-black text-slate-300 uppercase tracking-widest active:text-slate-500 transition-colors">+ Add Food</button>
-                          </div>
-                      ) : (
-                          <div className="p-3 pt-0">
-                             <button onClick={() => { setIsSearching(true); setSelectedMeal(meal); }} className="w-full py-3 border-2 border-dashed border-slate-100 rounded-xl text-[10px] font-bold text-slate-400 uppercase tracking-widest active:border-slate-200 active:text-slate-500 transition-all">Empty - Tap to Track</button>
-                          </div>
-                      )}
+                                  <span className="font-black text-xs text-slate-900">{item.calories?.amount}</span>
+                              </div>
+                          ))}
+                          <button onClick={() => { setIsSearching(true); setSelectedMeal(meal); }} className="w-full py-3 text-[10px] font-black text-slate-300 uppercase tracking-widest">+ Add Food</button>
+                      </div>
                   </section>
               );
           })}
       </div>
 
-      {/* --- FOOD MODAL --- */}
       <ModalPortal>
         <AnimatePresence>
             {selectedProduct && (
-                <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed inset-0 z-[11000] flex flex-col justify-end pointer-events-none">
-                    <div className="absolute inset-0 bg-slate-900/10 backdrop-blur-[1px] pointer-events-auto transition-opacity" onClick={() => setSelectedProduct(null)} />
+                <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed inset-0 z-[11000] flex flex-col justify-end pointer-events-none">
+                    <div className="absolute inset-0 bg-slate-900/10 backdrop-blur-[1px] pointer-events-auto" onClick={() => setSelectedProduct(null)} />
                     <div className="bg-white w-full rounded-t-[2rem] p-5 pb-8 pointer-events-auto h-[80vh] overflow-y-auto relative shadow-2xl">
                        <div className="w-10 h-1 bg-slate-100 rounded-full mx-auto mb-6" />
                         <div className="text-center mb-6">
                             <h2 className="text-xl font-black text-slate-900 leading-tight mb-2">{selectedProduct.fullName}</h2>
-                            <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full">{selectedProduct.brand}</span>
+                            <span className="inline-block bg-slate-50 text-slate-400 text-[10px] font-bold uppercase px-3 py-1 rounded-full">{selectedProduct.brand}</span>
                         </div>
                         <div className="flex items-center justify-between mb-6 bg-slate-50 p-2 rounded-2xl">
-                            <button onClick={() => setPortionSize(p => Math.max(0.5, p - 0.5))} className="w-12 h-12 bg-white rounded-xl text-xl font-bold text-slate-900 shadow-sm active:scale-95 transition-transform">-</button>
+                            <button onClick={() => setPortionSize(p => Math.max(0.5, p - 0.5))} className="w-12 h-12 bg-white rounded-xl text-xl font-bold">-</button>
                             <div className="text-center">
-                                <span className="block text-2xl font-black text-slate-900 tracking-tighter">{portionSize}<span className="text-lg text-slate-400">x</span></span>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Serving ({selectedProduct.servingLabel})</span>
+                                <span className="block text-2xl font-black">{portionSize}x</span>
+                                <span className="text-[9px] font-bold text-slate-400 uppercase">Serving ({selectedProduct.servingLabel})</span>
                             </div>
-                            <button onClick={() => setPortionSize(p => p + 0.5)} className="w-12 h-12 bg-white rounded-xl text-xl font-bold text-slate-900 shadow-sm active:scale-95 transition-transform">+</button>
+                            <button onClick={() => setPortionSize(p => p + 0.5)} className="w-12 h-12 bg-white rounded-xl text-xl font-bold">+</button>
                         </div>
                         <div className="grid grid-cols-4 gap-2 mb-8">
                             {[{ label: 'Cal', val: selectedProduct.coreMetrics?.calories?.amount, unit: '' }, { label: 'Pro', val: selectedProduct.coreMetrics?.protein?.amount, unit: 'g' }, { label: 'Carb', val: selectedProduct.coreMetrics?.carbs?.amount, unit: 'g' }, { label: 'Fat', val: selectedProduct.coreMetrics?.fat?.amount, unit: 'g' }].map(m => (
                                 <div key={m.label} className="bg-slate-50 rounded-xl p-2 flex flex-col items-center justify-center aspect-square">
-                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1 opacity-70">{m.label}</span>
+                                    <span className="text-[9px] font-bold text-slate-400 uppercase mb-1">{m.label}</span>
                                     <span className="text-lg font-black text-slate-900">{m.val}</span>
                                     <span className="text-[9px] font-bold text-slate-400">{m.unit}</span>
                                 </div>
                             ))}
                         </div>
-                        <div className="absolute bottom-0 left-0 right-0 p-5 bg-gradient-to-t from-white via-white to-transparent pt-10">
-                            <motion.button whileTap={{ scale: 0.98 }} onClick={handleAddToIntake} className={`w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl ${trackingSuccess ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-900 text-white shadow-slate-300'}`}>
+                        <div className="absolute bottom-0 left-0 right-0 p-5 bg-white">
+                            <motion.button whileTap={{ scale: 0.98 }} onClick={handleAddToIntake} className={`w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest text-white shadow-xl ${trackingSuccess ? 'bg-emerald-500 shadow-emerald-200' : 'bg-slate-900 shadow-slate-300'}`}>
                                 {trackingSuccess ? 'Logged!' : `Add to ${selectedMeal}`}
                             </motion.button>
                         </div>
