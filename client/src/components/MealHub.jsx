@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom'; 
 import { db } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore";
-import { Helmet } from "react-helmet-async"; // FIX: Updated import
+import { Helmet } from "react-helmet-async"; 
 import { motion, AnimatePresence } from 'framer-motion';
 
 // --- ICONS ---
@@ -12,28 +12,53 @@ import storeIcon from '../icons/store.svg';
 import fireIcon from '../icons/fire.svg';       
 import clockIcon from '../icons/clock.svg';     
 import refreshIcon from '../icons/rotate.svg';
+import starIcon from '../icons/sparkle.svg'; 
+
+// --- CONFIG ---
+const CACHE_KEY = 'safespoon_meal_hub_v1';
+const CACHE_DURATION = 1000 * 60 * 60 * 4; // 4 Hours
 
 // --- SHARED COMPONENT ---
 const ColoredIcon = ({ src, colorClass, sizeClass = "w-4 h-4" }) => (
   <div className={`${sizeClass} ${colorClass}`} style={{ WebkitMaskImage: `url("${src}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${src}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center', backgroundColor: 'currentColor' }} />
 );
 
-// --- REUSABLE RECIPE ROW COMPONENT ---
+// --- NEW: FLAT PRO BANNER (Consistent Design) ---
+const CompactUpgradeBanner = () => (
+    <div className="mx-6 mb-2 p-4 bg-white rounded-2xl flex items-center justify-between border border-slate-100 shadow-sm">
+        <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center shrink-0 border border-emerald-100">
+                <ColoredIcon src={starIcon} colorClass="text-emerald-600" sizeClass="w-5 h-5" />
+            </div>
+            <div>
+                <h4 className="text-sm font-bold text-slate-900 leading-tight">Safespoon Premium</h4>
+                <p className="text-[10px] font-bold text-slate-400 capitalize tracking-tight">Unlock AI recipes</p>
+            </div>
+        </div>
+        <button className="px-5 py-2.5 bg-emerald-600 text-emerald-50 text-[10px] font-bold capitalize tracking-tight rounded-xl active:scale-95 transition-transform whitespace-nowrap shadow-md shadow-slate-200">
+            Upgrade Now
+        </button>
+    </div>
+);
+
+// --- REUSABLE RECIPE ROW ---
 const RecipeRow = ({ title, recipes, loading, onRefresh, navigate, onItemClick }) => (
   <section className="mb-10" aria-label={title}>
       <div className="flex justify-between items-center px-6 mb-5">
           <h3 className="text-lg font-black text-slate-900 tracking-tight">{title}</h3>
           {onRefresh && (
-            <button onClick={onRefresh} aria-label="Refresh recommendations" className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-900 hover:bg-slate-200 transition-colors">
+            <button onClick={onRefresh} aria-label="Refresh recommendations" className="h-8 w-8 rounded-full bg-slate-50 border border-slate-100 flex items-center justify-center text-slate-400 hover:text-slate-900 hover:bg-white transition-colors active:rotate-180 duration-500">
                 <div className={loading ? 'animate-spin' : ''}>
-                    <ColoredIcon src={refreshIcon} colorClass="bg-slate-900" sizeClass="w-4 h-4" />
+                    <ColoredIcon src={refreshIcon} colorClass="bg-current" sizeClass="w-4 h-4" />
                 </div>
             </button>
           )}
       </div>
 
-      <div className="flex overflow-x-auto gap-4 px-6 no-scrollbar pb-4">
-          {loading ? [1,2,3].map(i => <div key={i} className="shrink-0 w-72 h-48 bg-white rounded-[2rem] animate-pulse shadow-sm" />) : 
+      <div className="flex overflow-x-auto gap-4 px-6 no-scrollbar pb-4 min-h-[220px]">
+          {loading && recipes.length === 0 ? (
+             [1,2,3].map(i => <div key={i} className="shrink-0 w-72 h-48 bg-slate-50 border border-slate-100 rounded-[2rem] animate-pulse" />)
+          ) : (
             recipes.map(recipe => (
               <article 
                 key={recipe.id} 
@@ -45,28 +70,28 @@ const RecipeRow = ({ title, recipes, loading, onRefresh, navigate, onItemClick }
                   <div className="relative h-48 w-full rounded-[2rem] overflow-hidden mb-3 shadow-sm border border-slate-100 bg-slate-100">
                       <img 
                         src={recipe.image} 
-                        alt={`${recipe.name} - ${recipe.calories} calories`} 
+                        alt={recipe.name}
                         className="w-full h-full object-cover transition-opacity duration-300" 
                         loading="lazy" 
                       />
-                      <div className="absolute top-4 right-4 w-9 h-9 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm">
-                          <ColoredIcon src={heartIcon} colorClass="bg-slate-900" sizeClass="w-4 h-4" />
+                      <div className="absolute top-4 right-4 w-8 h-8 bg-white/90 backdrop-blur rounded-full flex items-center justify-center shadow-sm">
+                          <ColoredIcon src={heartIcon} colorClass="bg-slate-900" sizeClass="w-3.5 h-3.5" />
                       </div>
                   </div>
-                  <h4 className="px-2 font-black text-slate-900 text-sm leading-tight truncate">{recipe.name}</h4>
+                  <h4 className="px-1 font-black text-slate-900 text-sm leading-tight truncate">{recipe.name}</h4>
                   
-                  <div className="px-2 flex gap-4 mt-2">
+                  <div className="px-1 flex gap-4 mt-2">
                       <div className="flex items-center gap-1.5">
-                          <ColoredIcon src={clockIcon} colorClass="bg-slate-400" sizeClass="w-3.5 h-3.5" />
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{recipe.time || '5 min'}</span>
+                          <ColoredIcon src={clockIcon} colorClass="bg-slate-400" sizeClass="w-3 h-3" />
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{recipe.time || '15 min'}</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                          <ColoredIcon src={fireIcon} colorClass="bg-slate-400" sizeClass="w-3.5 h-3.5" />
+                          <ColoredIcon src={fireIcon} colorClass="bg-slate-400" sizeClass="w-3 h-3" />
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{recipe.calories} kcal</span>
                       </div>
                   </div>
               </article>
-          ))}
+          )))}
       </div>
   </section>
 );
@@ -88,11 +113,8 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                             <button 
                                 onClick={() => { setIsSearching(false); setSearchTerm(''); }} 
                                 className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 hover:bg-slate-200 transition-colors"
-                                aria-label="Close search"
                             >
-                                <svg className="w-5 h-5 text-slate-900" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+                                <span className="font-bold text-lg">✕</span>
                             </button>
                         </div>
 
@@ -112,7 +134,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                     </div>
 
                     <div className="flex-1 overflow-y-auto px-5 py-4">
-                        {/* 1. PANTRY MATCHES (Local) */}
                         {results.groceries.length > 0 && (
                             <div className="mb-6">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 pl-1">From Your Pantry</h3>
@@ -132,7 +153,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                             </div>
                         )}
 
-                        {/* 2. GLOBAL RECIPES (API) */}
                         {(results.recipes.length > 0 || isApiLoading) && (
                             <div>
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 pl-1">Global Discoveries</h3>
@@ -157,12 +177,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                                 </div>
                             </div>
                         )}
-
-                        {!isApiLoading && results.recipes.length === 0 && results.groceries.length === 0 && searchTerm.length > 2 && (
-                            <div className="text-center py-10 opacity-50">
-                                <p className="text-sm font-bold text-slate-400">No matches found.</p>
-                            </div>
-                        )}
                     </div>
                 </motion.div>
             )}
@@ -177,39 +191,53 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
   const [isSearching, setIsSearching] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   
-  // Data States
-  const [featuredRecipes, setFeaturedRecipes] = useState([]);
-  const [breakfastRecipes, setBreakfastRecipes] = useState([]);
-  const [proteinRecipes, setProteinRecipes] = useState([]);
-  const [vegRecipes, setVegRecipes] = useState([]);
-  const [treatRecipes, setTreatRecipes] = useState([]);
-  const [drinkRecipes, setDrinkRecipes] = useState([]);
-  const [loading, setLoading] = useState({ featured: true, breakfast: true, protein: true, veg: true, treat: true, drinks: true });
+  // --- 1. OPTIMIZED CACHE STRATEGY ---
+  // Load whatever is in cache IMMEDIATELY, regardless of goal match.
+  // This prevents the "blank page" flicker. We will silently update it if goal mismatches later.
+  const getInitialState = (key, fallback) => {
+      try {
+          const cached = localStorage.getItem(CACHE_KEY);
+          if (cached) {
+              const parsed = JSON.parse(cached);
+              // Simply return data if it exists. We refetch in useEffect anyway if needed.
+              if (parsed.data) return parsed.data[key] || fallback;
+          }
+      } catch (e) {}
+      return fallback;
+  };
+
+  const [featuredRecipes, setFeaturedRecipes] = useState(() => getInitialState('featured', []));
+  const [breakfastRecipes, setBreakfastRecipes] = useState(() => getInitialState('breakfast', []));
+  const [goalRecipes, setGoalRecipes] = useState(() => getInitialState('goalRecipes', []));
+  const [goalTitle, setGoalTitle] = useState(() => getInitialState('goalTitle', 'Recommended For You'));
+  const [vegRecipes, setVegRecipes] = useState(() => getInitialState('veg', []));
+  const [treatRecipes, setTreatRecipes] = useState(() => getInitialState('treat', []));
+  const [drinkRecipes, setDrinkRecipes] = useState(() => getInitialState('drinks', []));
+  
+  // Only show loading skeletons if we truly have NO data
+  const [isRefreshing, setIsRefreshing] = useState(featuredRecipes.length === 0);
+  
   const [allGroceries, setAllGroceries] = useState([]);
   const [searchResults, setSearchResults] = useState({ recipes: [], groceries: [] });
   const [isSearchingAPI, setIsSearchingAPI] = useState(false);
 
-  // --- 1. LOAD GROCERIES ---
+  // --- 2. LOAD GROCERIES ---
   useEffect(() => {
     const q = query(collection(db, "groceries"), orderBy("lastUpdated", "desc"), limit(500));
-    const unsub = onSnapshot(q, (snapshot) => {
+    return onSnapshot(q, (snapshot) => {
       setAllGroceries(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
     });
-    return () => unsub();
   }, []);
 
-  // --- 2. CURATION ENGINE ---
+  // --- 3. DATA FETCHING UTILS ---
   const fetchRecipesByUrl = async (url, count = 5, isDrink = false) => {
       try {
         const res = await fetch(url);
         const data = await res.json();
         const items = isDrink ? data.drinks : data.meals;
         const list = items || [];
-        
-        // Shuffle and slice
         const shuffled = list.sort(() => 0.5 - Math.random()).slice(0, count);
         
-        // Augment with mock meta-data (API limitation)
         return shuffled.map(m => ({
             id: isDrink ? m.idDrink : m.idMeal,
             name: isDrink ? m.strDrink : m.strMeal,
@@ -217,59 +245,97 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
             time: isDrink ? '5 min' : `${Math.floor(Math.random() * (45 - 15) + 15)} min`,
             calories: Math.floor(Math.random() * (isDrink ? (250 - 80) + 80 : (700 - 300) + 300))
         }));
-      } catch (e) {
-          console.error("Fetch failed", e);
-          return [];
-      }
+      } catch (e) { return []; }
   };
 
-  const loadAllSections = async () => {
-    // A. Chef's Daily Selections (Random)
-    setLoading(prev => ({ ...prev, featured: true }));
-    const promises = Array.from({ length: 5 }).map(() => fetch('https://www.themealdb.com/api/json/v1/1/random.php').then(res => res.json()));
-    const randomResults = await Promise.all(promises);
-    setFeaturedRecipes(randomResults.map(r => r.meals?.[0]).filter(Boolean).map(m => ({
-        id: m.idMeal, name: m.strMeal, image: m.strMealThumb, time: '20 min', calories: Math.floor(Math.random() * 300 + 300)
-    })));
-    setLoading(prev => ({ ...prev, featured: false }));
+  const loadAllSections = async (forceRefresh = false) => {
+    // If profile isn't ready, use 'maintain' as safe default but don't crash
+    const userGoal = userProfile?.goalType || 'maintain'; 
+    
+    if (!forceRefresh) {
+        const cachedData = localStorage.getItem(CACHE_KEY);
+        if (cachedData) {
+            const { timestamp, goal } = JSON.parse(cachedData);
+            const isFresh = (Date.now() - timestamp) < CACHE_DURATION;
+            
+            // If cache is fresh AND matches the user's current goal (or they have no goal yet)
+            // We can skip the fetch completely.
+            if (isFresh && (goal === userGoal || !userProfile)) {
+                setIsRefreshing(false);
+                return; 
+            }
+        }
+    }
 
-    // B. Breakfast (Morning Fuel)
-    setLoading(prev => ({ ...prev, breakfast: true }));
-    fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Breakfast')
-      .then(res => { setBreakfastRecipes(res); setLoading(prev => ({ ...prev, breakfast: false })); });
+    setIsRefreshing(true);
 
-    // C. Protein (Chicken/Beef)
-    setLoading(prev => ({ ...prev, protein: true }));
-    fetchRecipesByUrl(`https://www.themealdb.com/api/json/v1/1/filter.php?c=${Math.random() > 0.5 ? 'Chicken' : 'Beef'}`)
-      .then(res => { setProteinRecipes(res); setLoading(prev => ({ ...prev, protein: false })); });
+    let goalCategory = 'Chicken'; 
+    let dynamicTitle = 'High-Performance Protein';
 
-    // D. Vegetarian (Health)
-    setLoading(prev => ({ ...prev, veg: true }));
-    fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Vegetarian')
-      .then(res => { setVegRecipes(res); setLoading(prev => ({ ...prev, veg: false })); });
+    if (userGoal === 'lose') {
+        goalCategory = Math.random() > 0.5 ? 'Chicken' : 'Seafood';
+        dynamicTitle = 'Lean Fuel (Fat Loss)';
+    } else if (userGoal === 'gain') {
+        goalCategory = Math.random() > 0.5 ? 'Beef' : 'Pasta';
+        dynamicTitle = 'Mass Builder (High Calorie)';
+    } else {
+        goalCategory = Math.random() > 0.5 ? 'Pork' : 'Lamb';
+        dynamicTitle = 'Balanced Maintenance';
+    }
+    setGoalTitle(dynamicTitle);
 
-    // E. Mindful Mixology (Alcohol)
-    setLoading(prev => ({ ...prev, drinks: true }));
-    fetchRecipesByUrl('https://www.thecocktaildb.com/api/json/v1/1/filter.php?c=Cocktail', 5, true)
-      .then(res => { setDrinkRecipes(res); setLoading(prev => ({ ...prev, drinks: false })); });
+    try {
+        const [randomData, breakfast, goal, veg, drinks, treats] = await Promise.all([
+            Promise.all(Array.from({ length: 5 }).map(() => fetch('https://www.themealdb.com/api/json/v1/1/random.php').then(r => r.json()))),
+            fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Breakfast'),
+            fetchRecipesByUrl(`https://www.themealdb.com/api/json/v1/1/filter.php?c=${goalCategory}`),
+            fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Vegetarian'),
+            fetchRecipesByUrl('https://www.thecocktaildb.com/api/json/v1/1/filter.php?c=Cocktail', 5, true),
+            fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Dessert')
+        ]);
 
-    // F. Treats (Dessert)
-    setLoading(prev => ({ ...prev, treat: true }));
-    fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Dessert')
-      .then(res => { setTreatRecipes(res); setLoading(prev => ({ ...prev, treat: false })); });
+        const formattedFeatured = randomData.map(r => r.meals?.[0]).filter(Boolean).map(m => ({
+            id: m.idMeal, name: m.strMeal, image: m.strMealThumb, time: '20 min', calories: Math.floor(Math.random() * 300 + 300)
+        }));
+
+        setFeaturedRecipes(formattedFeatured);
+        setBreakfastRecipes(breakfast);
+        setGoalRecipes(goal);
+        setVegRecipes(veg);
+        setDrinkRecipes(drinks);
+        setTreatRecipes(treats);
+
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+            timestamp: Date.now(),
+            goal: userGoal,
+            data: {
+                featured: formattedFeatured,
+                breakfast,
+                goalRecipes: goal,
+                goalTitle: dynamicTitle,
+                veg,
+                drinks,
+                treat: treats
+            }
+        }));
+
+    } catch (err) {
+        console.error("Load Error", err);
+    } finally {
+        setIsRefreshing(false);
+    }
   };
 
-  useEffect(() => { loadAllSections(); }, []);
+  // Run on mount. Add userGoal to dependency so it refetches if goal changes.
+  useEffect(() => { loadAllSections(); }, [userProfile?.goalType]);
 
-  // --- 3. SEARCH LOGIC ---
+  // --- 4. SEARCH LOGIC ---
   useEffect(() => {
     if (!searchTerm.trim()) return;
     const delay = setTimeout(async () => {
         setIsSearchingAPI(true);
-        // Local Filter
         const matchedGroceries = allGroceries.filter(item => item.name?.toLowerCase().includes(searchTerm.toLowerCase()));
         
-        // Remote Search
         let matchedRecipes = [];
         try {
             const res = await fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${searchTerm}`);
@@ -283,18 +349,14 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
     return () => clearTimeout(delay);
   }, [searchTerm, allGroceries]);
 
-  // --- DATA FORMATTING HELPER ---
+  // --- 5. FORMAT & HANDLERS ---
   const formatItemForMenu = (details, type, originalItem, relatedItems) => {
       const isDrink = type === 'drink';
       const ingredientsList = [];
-      
-      // Parse Ingredients (Both APIs use strIngredient1 format)
       for (let i = 1; i <= 20; i++) {
           const ing = details[`strIngredient${i}`];
           const measure = details[`strMeasure${i}`];
-          if (ing && ing.trim()) {
-              ingredientsList.push(measure ? `${measure.trim()} ${ing.trim()}` : ing.trim());
-          }
+          if (ing && ing.trim()) ingredientsList.push(measure ? `${measure.trim()} ${ing.trim()}` : ing.trim());
       }
 
       return {
@@ -316,47 +378,39 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
       };
   };
 
-  // --- HANDLER: DRINKS ---
   const handleDrinkSelect = async (drink) => {
       try {
           const res = await fetch(`https://www.thecocktaildb.com/api/json/v1/1/lookup.php?i=${drink.id}`);
           const data = await res.json();
           const fullDrink = data.drinks ? data.drinks[0] : null;
           if (!fullDrink) return;
-
-          // Get Related 
           const related = drinkRecipes.filter(d => d.id !== drink.id).sort(() => 0.5 - Math.random()).slice(0, 5);
-          
           const menuData = formatItemForMenu(fullDrink, 'drink', drink, related);
           onOpenMenu(menuData);
-      } catch (e) { console.error(e); }
+      } catch (e) {}
   };
 
-  // --- HANDLER: FOOD (New Logic) ---
   const handleFoodSelect = async (recipe, categoryList) => {
       try {
           const res = await fetch(`https://www.themealdb.com/api/json/v1/1/lookup.php?i=${recipe.id}`);
           const data = await res.json();
           const fullMeal = data.meals ? data.meals[0] : null;
           if (!fullMeal) return;
-
-          // Get Related
           const related = categoryList.filter(r => r.id !== recipe.id).sort(() => 0.5 - Math.random()).slice(0, 5);
-
           const menuData = formatItemForMenu(fullMeal, 'food', recipe, related);
           onOpenMenu(menuData);
-      } catch (e) { console.error(e); }
+      } catch (e) {}
   };
 
   // --- WRAPPERS ---
   const handleFeaturedClick = (item) => handleFoodSelect(item, featuredRecipes);
   const handleBreakfastClick = (item) => handleFoodSelect(item, breakfastRecipes);
-  const handleProteinClick = (item) => handleFoodSelect(item, proteinRecipes);
+  const handleGoalClick = (item) => handleFoodSelect(item, goalRecipes);
   const handleVegClick = (item) => handleFoodSelect(item, vegRecipes);
   const handleTreatClick = (item) => handleFoodSelect(item, treatRecipes);
 
   return (
-    <main className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
+    <main className="w-full pb-6 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
       <Helmet><title>Meal Hub | Smart Nutrition Planner</title></Helmet>
 
       <SearchOverlay 
@@ -366,15 +420,13 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
         onSelect={(item, type) => type === 'recipe' ? handleFoodSelect(item, featuredRecipes) : onOpenMenu(item)}
       />
 
-      {/* HEADER */}
       <header className="pt-8 pb-2 px-6">
           <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Smart Nutrition & Meal Planner</p>
           <h1 className="text-3xl font-black text-slate-900 leading-tight tracking-tight">
-              Discover Your Next<br/>Healthy Meal.
+              Discover Your Next<br/>Healthy Meal
           </h1>
       </header>
 
-      {/* SEARCH BAR */}
       <div className="px-6 mb-10">
           <button 
             onClick={() => setIsSearching(true)}
@@ -387,33 +439,19 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
           </button>
       </div>
 
-      {/* SECTIONS: All now mapped to new handlers */}
-      <RecipeRow title="Chef's Daily Selections" recipes={featuredRecipes} loading={loading.featured} navigate={navigate} onRefresh={() => loadAllSections()} onItemClick={handleFeaturedClick} />
-      <RecipeRow title="Morning Momentum" recipes={breakfastRecipes} loading={loading.breakfast} navigate={navigate} onItemClick={handleBreakfastClick} />
-      <RecipeRow title="High-Performance Protein" recipes={proteinRecipes} loading={loading.protein} navigate={navigate} onItemClick={handleProteinClick} />
-      <RecipeRow title="Plant-Based Power" recipes={vegRecipes} loading={loading.veg} navigate={navigate} onItemClick={handleVegClick} />
-      <RecipeRow title="Mindful Mixology" recipes={drinkRecipes} loading={loading.drinks} navigate={navigate} onItemClick={handleDrinkSelect} />
-      <RecipeRow title="Weekend Indulgence" recipes={treatRecipes} loading={loading.treat} navigate={navigate} onItemClick={handleTreatClick} />
+      <RecipeRow title="Chef's Daily Selections" recipes={featuredRecipes} loading={isRefreshing && featuredRecipes.length === 0} navigate={navigate} onRefresh={() => loadAllSections(true)} onItemClick={handleFeaturedClick} />
+      <RecipeRow title="Morning Momentum" recipes={breakfastRecipes} loading={isRefreshing && breakfastRecipes.length === 0} navigate={navigate} onItemClick={handleBreakfastClick} />
+      
+      {/* Dynamic Goal Row */}
+      <RecipeRow title={goalTitle} recipes={goalRecipes} loading={isRefreshing && goalRecipes.length === 0} navigate={navigate} onItemClick={handleGoalClick} />
+      
+      <RecipeRow title="Plant-Based Power" recipes={vegRecipes} loading={isRefreshing && vegRecipes.length === 0} navigate={navigate} onItemClick={handleVegClick} />
+      <RecipeRow title="Mindful Mixology" recipes={drinkRecipes} loading={isRefreshing && drinkRecipes.length === 0} navigate={navigate} onItemClick={handleDrinkSelect} />
+      <RecipeRow title="Weekend Indulgence" recipes={treatRecipes} loading={isRefreshing && treatRecipes.length === 0} navigate={navigate} onItemClick={handleTreatClick} />
 
-      <section className="px-6">
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-slate-200 p-8 shadow-none">
-              <div className="relative z-10 flex flex-col items-center text-center">
-                  <div className="w-14 h-14 bg-emerald-500 rounded-2xl flex items-center justify-center mb-6">
-                      <svg className="w-7 h-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                  </div>
-                  <h4 className="text-2xl font-black text-slate-700 mb-2 tracking-tight">Upgrade Your Kitchen</h4>
-                  <p className="text-slate-400 text-sm font-medium mb-8 max-w-[260px] leading-relaxed">
-                      Unlock unlimited meal generation, automated nutritional analysis, and smart grocery syncing.
-                  </p>
-                  <button className="w-full py-5 bg-slate-700 text-slate-100 text-xs font-black uppercase tracking-widest rounded-2xl active:scale-95 transition-all">
-                      Start membership • $3.99/mo
-                  </button>
-                  <p className="mt-4 text-[9px] font-bold text-slate-500 uppercase tracking-widest">No commitment. Cancel anytime.</p>
-              </div>
-          </div>
-      </section>
+      {/* NEW COMPACT BANNER */}
+      <CompactUpgradeBanner />
+
     </main>
   );
 };

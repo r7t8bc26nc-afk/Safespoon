@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { getAuth } from "firebase/auth";
+import { getAuth, signOut } from "firebase/auth";
 import { db } from '../firebase';
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { motion, AnimatePresence } from 'framer-motion';
@@ -166,23 +166,41 @@ const Onboarding = ({ onComplete }) => {
       
       {/* HEADER */}
       <div className="pt-10 pb-4 px-6 bg-white sticky top-0 z-40 border-b border-slate-50">
-         <div className="flex flex-col">
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight mb-6">
+         
+         {/* Top Row: Title + Quit Button */}
+         <div className="flex justify-between items-start mb-6">
+            <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">
                 Setup <br/>
                 <span className="text-emerald-600">New Profile</span>
             </h1>
+
+            {/* Quit Button (Sign Out) */}
+            <button 
+                onClick={() => {
+                    if(window.confirm("Are you sure you want to sign out? Your progress will be lost.")) {
+                        const auth = getAuth();
+                        signOut(auth);
+                    }
+                }}
+                className="group flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 hover:bg-rose-50 transition-colors"
+                aria-label="Sign Out"
+            >
+                <svg className="w-5 h-5 text-slate-400 group-hover:text-rose-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+            </button>
+         </div>
             
-            {/* Step Progress */}
-            <div className="flex flex-col gap-2">
-                <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                    <span>{steps[step - 1].label}</span>
-                    <span>Step {step} of 2</span>
-                </div>
-                <div className="flex gap-2 h-1.5 w-full">
-                    {steps.map((s) => (
-                        <div key={s.id} className={`h-full flex-1 rounded-full transition-all duration-300 ${step >= s.id ? 'bg-slate-900' : 'bg-slate-100'}`} />
-                    ))}
-                </div>
+         {/* Step Progress */}
+         <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
+                <span>{steps[step - 1].label}</span>
+                <span>Step {step} of 2</span>
+            </div>
+            <div className="flex gap-2 h-1.5 w-full">
+                {steps.map((s) => (
+                    <div key={s.id} className={`h-full flex-1 rounded-full transition-all duration-300 ${step >= s.id ? 'bg-slate-900' : 'bg-slate-100'}`} />
+                ))}
             </div>
          </div>
       </div>
@@ -311,7 +329,7 @@ const Onboarding = ({ onComplete }) => {
          <button 
             disabled={loading || (step === 1 && (!formData.firstName || !formData.race || !formData.gender))}
             onClick={() => step < 2 ? setStep(step + 1) : handleFinish()}
-            className={`w-full h-14 rounded-2xl font-bold text-sm uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:active:scale-100 ${step === 2 ? 'bg-emerald-600 text-white shadow-emerald-200' : 'bg-slate-900 text-white'}`}
+            className={`w-full h-14 rounded-2xl font-bold text-sm capitalize tracking-tight shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:active:scale-100 ${step === 2 ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white'}`}
          >
             {loading ? "Configuring..." : (step === 2 ? "Complete Setup" : "Next Step")}
             {!loading && <ArrowIcon />}

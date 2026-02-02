@@ -18,7 +18,8 @@ import eggIcon from '../icons/eggfried.svg';
 import cloudIcon from '../icons/cloud-shield.svg';
 import heartIcon from '../icons/heart-check.svg';
 import historyIcon from '../icons/rotate.svg'; 
-import cameraIcon from '../icons/camera.svg'; // Ensure this icon exists
+import cameraIcon from '../icons/camera.svg'; 
+import scannerIcon from '../icons/scanner.svg'; // Added Import
 
 // --- ICONS MAPPING ---
 const ICONS = {
@@ -36,10 +37,9 @@ const ICONS = {
     history: historyIcon
 };
 
-// --- CONFIGURATION ---
-// SECURE KEYS (Prevents Git Errors)
-const LOGO_DEV_PUBLIC_KEY = import.meta.env.VITE_LOGO_DEV_PUBLIC_KEY;
-const USDA_API_KEY = import.meta.env.VITE_USDA_API_KEY;
+// --- CONFIGURATION (KEYS PRESERVED) ---
+const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
+const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7';
 
 // --- HELPERS ---
 const getVisualReference = (grams, name = "") => {
@@ -72,6 +72,120 @@ const ProgressBar = ({ current, max, colorClass, bgClass, height = "h-1.5" }) =>
   );
 };
 
+const ModalPortal = ({ children }) => {
+    if (typeof document === 'undefined') return null;
+    return ReactDOM.createPortal(children, document.body);
+};
+
+// --- NEW ENHANCED GOALS MODAL ---
+const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
+    const [step, setStep] = useState(1);
+    const [selectedGoal, setSelectedGoal] = useState('maintain');
+
+    const goals = [
+        { id: 'lose', label: 'Fat Loss', icon: fireIcon, sub: 'Sustainable Deficit', desc: 'Reduces daily intake by 15% to prioritize fat loss while retaining lean muscle.', modifier: 0.85 },
+        { id: 'maintain', label: 'Maintenance', icon: heartIcon, sub: 'Metabolic Baseline', desc: 'Keeps calories at your estimated expenditure to stabilize weight and energy.', modifier: 1.0 },
+        { id: 'gain', label: 'Muscle Gain', icon: dumbbellIcon, sub: 'Controlled Surplus', desc: 'Increases intake by 10% to fuel hypertrophy and strength gains.', modifier: 1.1 }
+    ];
+
+    const currentGoalData = goals.find(g => g.id === selectedGoal);
+    const projectedCalories = Math.round(tdee * currentGoalData.modifier);
+
+    return (
+      <ModalPortal>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[12000] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 font-['Switzer']">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
+                
+                {/* Progress Header */}
+                <div className="flex items-center justify-between mb-8">
+                     <div>
+                        <h2 className="text-3xl font-black text-slate-900 leading-tight">Calibrate Nutrition</h2>
+                        <p className="text-sm font-medium text-slate-500 mt-1">Let's align your dashboard with your biology</p>
+                     </div>
+                     <div className="flex gap-2">
+                        <div className={`w-2 h-2 rounded-full ${step >= 1 ? 'bg-slate-900' : 'bg-slate-200'}`} />
+                        <div className={`w-2 h-2 rounded-full ${step >= 2 ? 'bg-slate-900' : 'bg-slate-200'}`} />
+                     </div>
+                </div>
+
+                <AnimatePresence mode='wait'>
+                    {step === 1 ? (
+                        <motion.div key="step1" initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="flex-1 overflow-y-auto no-scrollbar">
+                            <div className="grid md:grid-cols-3 gap-4 mb-8">
+                                {goals.map((g) => (
+                                    <button 
+                                        key={g.id} 
+                                        onClick={() => setSelectedGoal(g.id)}
+                                        className={`flex flex-col items-center text-center p-6 rounded-[2rem] border-2 transition-all duration-300 relative overflow-hidden group ${selectedGoal === g.id ? 'border-emerald-500 bg-emerald-50/50' : 'border-slate-100 bg-white hover:border-slate-200'}`}
+                                    >
+                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-4 transition-colors ${selectedGoal === g.id ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-slate-50 text-slate-400 group-hover:bg-slate-100'}`}>
+                                            <ColoredIcon src={g.icon} colorClass="bg-current" sizeClass="w-7 h-7" />
+                                        </div>
+                                        <p className="font-black text-lg text-slate-900 mb-1">{g.label}</p>
+                                        <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-4">{g.sub}</p>
+                                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${selectedGoal === g.id ? 'border-emerald-500' : 'border-slate-200'}`}>
+                                            {selectedGoal === g.id && <div className="w-2 h-2 rounded-full bg-emerald-500" />}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 mb-6">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Selected Strategy</p>
+                                <p className="text-slate-600 text-sm font-medium leading-relaxed">{currentGoalData.desc}</p>
+                            </div>
+                        </motion.div>
+                    ) : (
+                        <motion.div key="step2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }}>
+                            <div className="bg-slate-900 rounded-[2rem] p-8 text-white text-center mb-8 shadow-xl shadow-slate-200">
+                                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2">Projected Daily Target</p>
+                                <div className="text-6xl font-black tracking-tighter mb-2">{projectedCalories}</div>
+                                <p className="text-slate-400 font-medium text-sm">kcal / day</p>
+                                
+                                <div className="grid grid-cols-3 gap-4 mt-8 pt-8 border-t border-white/10">
+                                    <div><span className="block text-2xl font-bold">{Math.round(projectedCalories * 0.20 / 4)}g</span><span className="text-[10px] font-bold text-slate-500 uppercase">Protein</span></div>
+                                    <div><span className="block text-2xl font-bold">{Math.round(projectedCalories * 0.50 / 4)}g</span><span className="text-[10px] font-bold text-slate-500 uppercase">Carbs</span></div>
+                                    <div><span className="block text-2xl font-bold">{Math.round(projectedCalories * 0.30 / 9)}g</span><span className="text-[10px] font-bold text-slate-500 uppercase">Fats</span></div>
+                                </div>
+                            </div>
+                            <p className="text-center text-slate-500 text-sm font-medium px-8">
+                                This plan is adjusted for your weight of <strong>{currentWeight} lbs</strong>. We will automatically track your adherence and suggest adjustments weekly.
+                            </p>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Footer Actions */}
+                <div className="flex gap-3 mt-6 pt-6 border-t border-slate-50">
+                    <button 
+                        onClick={onClose}
+                        className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
+                    >
+                        Skip
+                    </button>
+                    {step === 1 ? (
+                        <button 
+                            onClick={() => setStep(2)}
+                            className="flex-1 h-14 bg-slate-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                            Review Plan <span className="text-lg">→</span>
+                        </button>
+                    ) : (
+                        <button 
+                            onClick={() => onSave(selectedGoal)}
+                            className="flex-1 h-14 bg-emerald-500 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2"
+                        >
+                            Confirm & Save <span className="text-lg">✓</span>
+                        </button>
+                    )}
+                </div>
+
+            </motion.div>
+        </motion.div>
+      </ModalPortal>
+    );
+};
+
+// --- SUB-COMPONENTS ---
 const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => {
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const getDayStatus = (dateObj) => {
@@ -224,7 +338,6 @@ const PreviousDayReview = ({ history, currentDate, goals }) => {
     );
 };
 
-// --- BARCODE SCANNER ---
 const BarcodeScanner = ({ onResult, onClose }) => {
     const scannerId = "safespoon-barcode-reader";
     const [status, setStatus] = useState("Initializing camera...");
@@ -256,11 +369,6 @@ const BarcodeScanner = ({ onResult, onClose }) => {
     );
 };
 
-const ModalPortal = ({ children }) => {
-    if (typeof document === 'undefined') return null;
-    return ReactDOM.createPortal(children, document.body);
-};
-
 const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuery, isApiLoading, suggestions, onSelect, onScanPlate }) => {
     const [isScanning, setIsScanning] = useState(false);
     const handleScanResult = (barcode) => { setSearchQuery(barcode); setIsScanning(false); };
@@ -276,7 +384,7 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
                     <>
                         <div className="pt-14 px-5 pb-4 bg-white shadow-sm z-20 border-b border-slate-50">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-black text-slate-900 tracking-tight">Add Food</h2>
+                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Add Food</h2>
                                 <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="w-9 h-9 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 font-bold">✕</button>
                             </div>
                             
@@ -284,17 +392,11 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
                             <div className="flex gap-2 items-center mb-2">
                                 <div className="relative group flex-1">
                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-5 h-5" /></div>
-                                    <input autoFocus type="search" placeholder="Search food or scan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 font-bold text-slate-900 placeholder:text-slate-400 outline-none" />
+                                    <input autoFocus type="search" placeholder="Search food or scan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 font-medium text-slate-900 placeholder:text-slate-400 outline-none" />
                                 </div>
                                 
-                                {/* Barcode Scan Button */}
                                 <button onClick={() => setIsScanning(true)} className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-colors">
-                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
-                                </button>
-                                
-                                {/* Plate Scan Button (NEW) */}
-                                <button onClick={onScanPlate} className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-all">
-                                    <ColoredIcon src={cameraIcon} colorClass="bg-white" sizeClass="w-6 h-6" />
+                                    <ColoredIcon src={scannerIcon} colorClass="bg-current" sizeClass="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
@@ -321,6 +423,7 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
     );
 };
 
+// --- MAIN DASHBOARD ---
 const Dashboard = ({ profile, setIsSearching, isSearching }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -332,14 +435,13 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
   const [selectedDate, setSelectedDate] = useState(new Date()); 
   const [showMicros, setShowMicros] = useState(false);
   const [offlineIntake, setOfflineIntake] = useState([]);
-  const [deferredPrompt, setDeferredPrompt] = useState(null); // PWA State
-  
-  // NEW: iOS Detection States
+  const [deferredPrompt, setDeferredPrompt] = useState(null); 
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSHint, setShowIOSHint] = useState(false);
-  
-  // NEW: Plate Scanner State
   const [isPlateScanning, setIsPlateScanning] = useState(false);
+  
+  // NEW: Goals Modal State
+  const [showGoalsModal, setShowGoalsModal] = useState(false);
 
   useEffect(() => {
     try {
@@ -348,22 +450,49 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
     } catch (e) { console.error("Local load fail", e); }
   }, []);
 
-  // --- PWA INSTALL HANDLER & iOS CHECK ---
+  // --- GOALS MODAL TRIGGER (FIXED) ---
   useEffect(() => {
-    // 1. Android/Desktop Handler
-    const handler = (e) => {
-      e.preventDefault();
-      setDeferredPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
+    // Only show if user exists, has finished onboarding, and hasn't set goals yet
+    // Added specific dependency on hasSetGoals to prevent re-triggering
+    if (profile?.onboardingComplete && profile?.hasSetGoals === false) {
+        const timer = setTimeout(() => setShowGoalsModal(true), 1200);
+        return () => clearTimeout(timer);
+    }
+  }, [profile?.hasSetGoals, profile?.onboardingComplete]);
 
-    // 2. iOS Check
+  // --- SAVE GOAL HANDLER ---
+  const handleSaveGoal = async (goalType) => {
+      setShowGoalsModal(false);
+      if (!profile?.uid) return;
+      
+      try {
+          // Update Firestore
+          await updateDoc(doc(db, "users", profile.uid), { 
+              goalType: goalType, 
+              hasSetGoals: true 
+          });
+          
+          // Optimistically update local state if needed (optional depending on parent)
+      } catch (e) {
+          console.error("Error saving goal", e);
+      }
+  };
+
+  // --- SKIP GOAL HANDLER ---
+  const handleSkipGoal = async () => {
+      setShowGoalsModal(false);
+      if (profile?.uid) {
+          await updateDoc(doc(db, "users", profile.uid), { hasSetGoals: true });
+      }
+  };
+
+  // --- PWA HANDLERS ---
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
+    window.addEventListener('beforeinstallprompt', handler);
     const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandAlone = window.matchMedia('(display-mode: standalone)').matches;
-    if (isDeviceIOS && !isStandAlone) {
-        setIsIOS(true);
-    }
-
+    if (isDeviceIOS && !isStandAlone) setIsIOS(true);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
@@ -374,6 +503,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
     if (outcome === 'accepted') setDeferredPrompt(null);
   };
 
+  // --- STATS CALCULATION ---
   const dailyStats = useMemo(() => {
     let bmr = 1600; 
     let weightKg = 70; 
@@ -388,7 +518,14 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         bmr = (gender === 'male') ? (10 * weightKg + 6.25 * heightCm - 5 * age + 5) : (10 * weightKg + 6.25 * heightCm - 5 * age - 161);
     }
     
-    const tdee = Math.round(bmr * (profile?.activityLevel || 1.2)); 
+    // TDEE Calculation based on Goal
+    // NOTE: This logic mirrors the modal's calculation
+    let tdee = Math.round(bmr * (profile?.activityLevel || 1.2)); 
+    
+    // Apply Goal Modifier
+    const goalType = profile?.goalType || 'maintain';
+    if (goalType === 'lose') tdee = Math.round(tdee * 0.85); // 15% Deficit
+    if (goalType === 'gain') tdee = Math.round(tdee * 1.10); // 10% Surplus
     
     const goals = {
         calories: tdee,
@@ -419,37 +556,19 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         }
     });
 
-    return { totals, goals, meals };
+    return { totals, goals, meals, tdee: Math.round(bmr * (profile?.activityLevel || 1.2)) }; // Pass raw TDEE for modal calculation
   }, [profile, selectedDate, offlineIntake]);
 
-  // --- HANDLE PLATE ANALYSIS ---
   const handlePlateAnalysis = (data) => {
-      // 1. Close scanner
       setIsPlateScanning(false);
-      
-      // 2. Process LogMeal Data
       if (data.segmentation_results && data.segmentation_results.length > 0) {
-           const dish = data.segmentation_results[0].recognition_results[0]; // Top prediction
-           
-           // 3. Create Product Object for Modal
+           const dish = data.segmentation_results[0].recognition_results[0]; 
            const detectedFood = {
-               name: dish.name,
-               fullName: dish.name,
-               brand: "AI Detected",
-               servingLabel: "1 serving",
-               coreMetrics: { 
-                   // Placeholder metrics until confirmed via USDA or nutrition endpoint
-                   calories: { amount: Math.round(dish.calories || 250) },
-                   protein: { amount: 0 }, 
-                   fat: { amount: 0 },
-                   carbs: { amount: 0 }
-               }
+               name: dish.name, fullName: dish.name, brand: "AI Detected", servingLabel: "1 serving",
+               coreMetrics: { calories: { amount: Math.round(dish.calories || 250) }, protein: { amount: 0 }, fat: { amount: 0 }, carbs: { amount: 0 } }
            };
-           // 4. Open Modal
            setSelectedProduct(detectedFood);
-      } else {
-           alert("Could not detect food. Please try again.");
-      }
+      } else { alert("Could not detect food. Please try again."); }
   };
 
   const handleProductSelect = async (product) => {
@@ -464,8 +583,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         const details = {
             servingLabel: `${rawSize}${data.servingSizeUnit || 'g'}`,
             householdReference: data.householdServingFullText || null, 
-            fullName: data.description,
-            brand: data.brandOwner || product.brand,
+            fullName: data.description, brand: data.brandOwner || product.brand,
             coreMetrics: { 
                 calories: getNut(['208', '1008']), protein: getNut(['203']), fat: getNut(['204']), carbs: getNut(['205']),
                 sugar: getNut(['269']), fiber: getNut(['291']), sodium: getNut(['307']), satFat: getNut(['606']), polyFat: getNut(['646']), monoFat: getNut(['645']), transFat: getNut(['605']), cholesterol: getNut(['601']), potassium: getNut(['306']), vitaminA: getNut(['318', '320']), vitaminC: getNut(['401']), calcium: getNut(['301']), iron: getNut(['303'])
@@ -479,9 +597,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
     const base = selectedProduct.coreMetrics;
     const trackedMetrics = {}; 
     Object.keys(base).forEach(key => { trackedMetrics[key] = { amount: Math.round((base[key]?.amount || 0) * portionSize) }; });
-
     const newLogEntry = { ...trackedMetrics, name: selectedProduct.fullName, brand: selectedProduct.brand, portion: Number(portionSize) || 1, meal: selectedMeal, timestamp: selectedDate.toISOString() };
-
     try {
       await updateDoc(doc(db, "users", profile.uid), { dailyIntake: arrayUnion(newLogEntry) });
       setTrackingSuccess(true);
@@ -514,21 +630,28 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
 
   return (
     <main className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
+      
+      {/* --- NEW: ENHANCED GOALS MODAL --- */}
+      <AnimatePresence>
+        {showGoalsModal && (
+            <GoalsModal 
+                currentWeight={profile?.weight || 0} 
+                tdee={dailyStats.tdee}
+                onSave={handleSaveGoal} 
+                onClose={handleSkipGoal} 
+            />
+        )}
+      </AnimatePresence>
+
       <SearchOverlay 
         isSearching={isSearching} setIsSearching={setIsSearching} 
         searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
         isApiLoading={isApiLoading} suggestions={suggestions} 
         onSelect={handleProductSelect}
-        onScanPlate={() => setIsPlateScanning(true)} // PASS TRIGGER
+        onScanPlate={() => setIsPlateScanning(true)} 
       />
       
-      {/* --- PLATE SCANNER OVERLAY --- */}
-      {isPlateScanning && (
-          <PlateScanner 
-             onResult={handlePlateAnalysis}
-             onClose={() => setIsPlateScanning(false)}
-          />
-      )}
+      {isPlateScanning && <PlateScanner onResult={handlePlateAnalysis} onClose={() => setIsPlateScanning(false)} />}
       
       {/* --- HEADER --- */}
       <div className="pt-10 pb-4 px-4">
@@ -543,7 +666,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
                 </p>
              </div>
              
-             {/* PWA INSTALL BUTTON (UPDATED) */}
              {(deferredPrompt || isIOS) && (
                  <button 
                     onClick={isIOS ? () => setShowIOSHint(true) : handleInstallClick}
@@ -563,12 +685,10 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
           />
       </div>
       
-      {/* --- HEALTH VITALS HERO --- */}
       <div className="px-4 mb-8">
           <HealthVitalsCard totals={dailyStats.totals} goals={dailyStats.goals} />
       </div>
 
-      {/* --- YESTERDAY'S REVIEW --- */}
       <PreviousDayReview 
         history={[...(profile?.dailyIntake || []), ...offlineIntake]} 
         currentDate={selectedDate} 
@@ -607,7 +727,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
             </AnimatePresence>
       </div>
 
-      {/* --- MEAL LIST --- */}
       <div className="px-4 space-y-4 pb-12">
           {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map((meal) => {
               const items = dailyStats.meals[meal]; const cals = items.reduce((s, i) => s + (i.calories?.amount || 0), 0);
@@ -646,7 +765,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
           })}
       </div>
 
-      {/* --- FOOD MODAL --- */}
       <ModalPortal>
         <AnimatePresence>
             {selectedProduct && (
@@ -689,7 +807,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         </AnimatePresence>
       </ModalPortal>
 
-      {/* --- NEW: iOS INSTALL INSTRUCTIONS MODAL --- */}
       <ModalPortal>
         <AnimatePresence>
             {showIOSHint && (
@@ -706,7 +823,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
                         <div className="space-y-4">
                             <div className="flex items-center gap-4">
                                 <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-slate-900 font-bold">1</span>
-                                <p className="text-sm font-bold text-slate-900">Tap the <span className="inline-block mx-1"><svg className="w-4 h-4 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg> Share</span> button below</p>
+                                <p className="text-sm font-bold text-slate-900">Tap the <span className="inline-block mx-1"><svg className="w-4 h-4 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4 4m0 0L8 8m4-4v12" /></svg> Share</span> button below</p>
                             </div>
                             <div className="flex items-center gap-4">
                                 <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-slate-900 font-bold">2</span>
@@ -716,7 +833,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
                         <div className="mt-6 pt-6 border-t border-slate-50 text-center">
                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Works best in Safari</p>
                         </div>
-                        {/* Pointing Arrow for Context (Mobile Only) */}
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45 translate-y-1/2 sm:hidden"></div>
                     </motion.div>
                 </motion.div>

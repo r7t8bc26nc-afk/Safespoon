@@ -10,8 +10,10 @@ import lifestyleIcon from '../icons/heart.svg';
 import filterIcon from '../icons/virus-covid.svg';
 import userIcon from '../icons/user.svg';
 import scaleIcon from '../icons/dumbbell-filled.svg'; 
-import atrfibIcon from '../icons/wave-pulse.svg'; // Added AFib icon
-import chevronRight from '../icons/search.svg'; // Using search as placeholder, typically chevron-right
+import atrfibIcon from '../icons/wave-pulse.svg'; 
+import chevronRight from '../icons/sparkle.svg'; 
+import fireIcon from '../icons/fire.svg'; 
+import starIcon from '../icons/sparkle.svg'; 
 
 // Selectable Item Icons
 import celiacIcon from '../icons/bread-slice.svg';
@@ -22,14 +24,20 @@ import halalIcon from '../icons/mosque.svg';
 import kosherIcon from '../icons/steak.svg';
 import veganIcon from '../icons/leaf.svg';
 import veggieIcon from '../icons/carrot.svg';
-import afibIcon from '../icons/wave-pulse.svg'; // Added AFib icon
+import afibIcon from '../icons/wave-pulse.svg'; 
+
+const GOAL_OPTIONS = [
+    { id: 'lose', label: "Fat Loss", desc: "Caloric Deficit", icon: fireIcon },
+    { id: 'maintain', label: "Maintenance", desc: "Metabolic Baseline", icon: ibdIcon }, 
+    { id: 'gain', label: "Muscle Gain", desc: "Caloric Surplus", icon: scaleIcon } 
+];
 
 const MEDICAL_CONDITIONS = [
     { id: 'celiac', label: "Celiac Disease", impact: "Gluten-Free Required", icon: celiacIcon },
     { id: 'ckd', label: "Kidney Disease", impact: "Low Sodium/Protein", icon: kidneyIcon },
     { id: 'diabetes', label: "Diabetes", impact: "Sugar Management", icon: diabetesIcon },
     { id: 'ibd', label: "IBD/Crohn's", impact: "Gut Health", icon: ibdIcon },
-    { id: 'afib', label: "Atrial Fibrillation", impact: "Heart Rate Management", icon: atrfibIcon } // Added AFib
+    { id: 'afib', label: "Atrial Fibrillation", impact: "Heart Rate Management", icon: atrfibIcon }
 ];
 
 const LIFESTYLE_DIETS = [
@@ -68,7 +76,7 @@ const ColoredIcon = ({ src, colorClass, sizeClass = "w-6 h-6" }) => (
 );
 
 // --- REUSABLE SELECTION MODAL (HIG STYLE) ---
-const SelectionSheet = ({ isOpen, onClose, title, options, value, onSelect, unit = "" }) => {
+const SelectionSheet = ({ isOpen, onClose, title, options, value, onSelect }) => {
     return (
         <AnimatePresence>
             {isOpen && (
@@ -104,14 +112,39 @@ const SelectionSheet = ({ isOpen, onClose, title, options, value, onSelect, unit
     );
 };
 
+// --- NEW: SUBTLE SUBSCRIPTION ROW (REPLACES LARGE CARD) ---
+const SubscriptionRow = ({ isPremium, onManage }) => (
+    <button
+        onClick={onManage}
+        className="w-full p-4 rounded-2xl border border-slate-100 bg-white flex items-center justify-between shadow-sm active:scale-[0.98] transition-all hover:border-slate-200"
+    >
+        <div className="flex items-center gap-4">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isPremium ? 'bg-emerald-100 text-emerald-600' : 'bg-amber-50 text-amber-500'}`}>
+                <ColoredIcon src={starIcon} colorClass="bg-current" sizeClass="w-5 h-5" />
+            </div>
+            <div className="text-left">
+                <p className="font-bold text-slate-900 text-sm leading-tight">
+                    {isPremium ? "Premium Plan" : "Starter Plan"}
+                </p>
+                <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wide">
+                    {isPremium ? "Active • Auto-renews" : "Upgrade for AI Features"}
+                </p>
+            </div>
+        </div>
+        <div className="px-4 py-2 bg-slate-50 rounded-lg">
+            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                {isPremium ? "Manage" : "Upgrade"}
+            </span>
+        </div>
+    </button>
+);
+
 const Settings = () => {
   const [originalProfile, setOriginalProfile] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  
-  // Modal States
-  const [activeModal, setActiveModal] = useState(null); // 'height', 'weight', 'age'
+  const [activeModal, setActiveModal] = useState(null); 
 
   const auth = getAuth();
   const user = auth.currentUser;
@@ -152,15 +185,22 @@ const Settings = () => {
     setIsSaving(false);
   };
 
-  // --- DATA GENERATORS FOR MODALS ---
-  const heightOptions = Array.from({length: 49}, (_, i) => { // 4'0" to 8'0"
+  const handleSubscription = () => {
+      if (profile?.isPremium) {
+          alert("Redirecting to Stripe Customer Portal...");
+      } else {
+          alert("Opening Upgrade Options...");
+      }
+  };
+
+  // --- DATA GENERATORS ---
+  const heightOptions = Array.from({length: 49}, (_, i) => { 
       const totalInches = 48 + i;
       const ft = Math.floor(totalInches / 12);
       const inches = totalInches % 12;
       return { val: totalInches, label: `${ft}' ${inches}"` };
   });
-
-  const weightOptions = Array.from({length: 350}, (_, i) => ({ val: i + 50, label: `${i + 50} lbs` })); // 50 to 400 lbs
+  const weightOptions = Array.from({length: 350}, (_, i) => ({ val: i + 50, label: `${i + 50} lbs` })); 
   const ageOptions = Array.from({length: 100}, (_, i) => ({ val: i + 1, label: `${i + 1} years old` }));
 
   if (loading) return <div className="py-20 flex justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-black rounded-full animate-spin"></div></div>;
@@ -176,7 +216,7 @@ const Settings = () => {
 
       <div className="px-4 space-y-8">
         
-        {/* 1. IDENTITY CARD */}
+        {/* 1. IDENTITY CARD (MOVED TO TOP) */}
         <section className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-100 flex items-center gap-5">
             <div className="h-16 w-16 rounded-2xl bg-slate-100 flex items-center justify-center overflow-hidden shadow-inner">
                 {user?.photoURL ? (
@@ -197,58 +237,75 @@ const Settings = () => {
             </div>
         </section>
 
-        {/* 2. PERSONAL DETAILS (Custom Modals) */}
+        {/* 2. SUBSCRIPTION ROW (NEW SUBTLE DESIGN) */}
+        <SubscriptionRow 
+            isPremium={profile?.isPremium || false} 
+            onManage={handleSubscription} 
+        />
+
+        {/* 3. PRIMARY GOAL */}
+        <section>
+            <div className="flex items-center gap-3 mb-4 px-2">
+                <ColoredIcon src={fireIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
+                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight pt-2">Primary Goal</h3>
+            </div>
+            <div className="grid grid-cols-1 gap-3">
+                {GOAL_OPTIONS.map(goal => {
+                    const active = (profile?.goalType || 'maintain') === goal.id;
+                    return (
+                        <button 
+                          key={goal.id} 
+                          onClick={() => handleFieldChange('goalType', goal.id)}
+                          className={`w-full min-h-[72px] p-4 rounded-2xl border text-left transition-all flex items-center justify-between shadow-sm active:scale-[0.98] ${active ? 'border-emerald-500 bg-emerald-50' : 'border-white bg-white hover:border-slate-200'}`}
+                        >
+                            <div className="flex items-center gap-4">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${active ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                                    <ColoredIcon src={goal.icon} colorClass="bg-current" sizeClass="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <p className={`font-bold text-[15px] leading-tight ${active ? 'text-slate-900' : 'text-slate-900'}`}>{goal.label}</p>
+                                    <p className="text-[11px] font-bold mt-0.5 text-slate-400">{goal.desc}</p>
+                                </div>
+                            </div>
+                            {active && <div className="w-6 h-6 bg-emerald-500 rounded-full flex items-center justify-center"><svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg></div>}
+                        </button>
+                    );
+                })}
+            </div>
+        </section>
+
+        {/* 4. PERSONAL DETAILS */}
         <section>
             <div className="flex items-center gap-3 mb-4 px-2">
                 <ColoredIcon src={scaleIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight pt-2">Measurements</h3>
             </div>
             <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden">
-                {/* HEIGHT ROW */}
-                <button 
-                    onClick={() => setActiveModal('height')}
-                    className="w-full flex items-center justify-between p-5 border-b border-slate-50 active:bg-slate-50 transition-colors"
-                >
+                <button onClick={() => setActiveModal('height')} className="w-full flex items-center justify-between p-5 border-b border-slate-50 active:bg-slate-50 transition-colors">
                     <span className="text-[15px] font-semibold text-slate-600">Height</span>
                     <div className="flex items-center gap-2">
-                        <span className="text-[15px] font-bold text-slate-900">
-                            {profile?.height ? `${Math.floor(profile.height / 12)}' ${profile.height % 12}"` : "Set"}
-                        </span>
+                        <span className="text-[15px] font-bold text-slate-900">{profile?.height ? `${Math.floor(profile.height / 12)}' ${profile.height % 12}"` : "Set"}</span>
                         <svg className="w-4 h-4 text-slate-300 transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                     </div>
                 </button>
-
-                {/* WEIGHT ROW */}
-                <button 
-                    onClick={() => setActiveModal('weight')}
-                    className="w-full flex items-center justify-between p-5 border-b border-slate-50 active:bg-slate-50 transition-colors"
-                >
+                <button onClick={() => setActiveModal('weight')} className="w-full flex items-center justify-between p-5 border-b border-slate-50 active:bg-slate-50 transition-colors">
                     <span className="text-[15px] font-semibold text-slate-600">Weight</span>
                     <div className="flex items-center gap-2">
-                        <span className="text-[15px] font-bold text-slate-900">
-                            {profile?.weight ? `${profile.weight} lbs` : "Set"}
-                        </span>
+                        <span className="text-[15px] font-bold text-slate-900">{profile?.weight ? `${profile.weight} lbs` : "Set"}</span>
                         <svg className="w-4 h-4 text-slate-300 transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                     </div>
                 </button>
-
-                {/* AGE ROW */}
-                <button 
-                    onClick={() => setActiveModal('age')}
-                    className="w-full flex items-center justify-between p-5 active:bg-slate-50 transition-colors"
-                >
+                <button onClick={() => setActiveModal('age')} className="w-full flex items-center justify-between p-5 active:bg-slate-50 transition-colors">
                     <span className="text-[15px] font-semibold text-slate-600">Age</span>
                     <div className="flex items-center gap-2">
-                        <span className="text-[15px] font-bold text-slate-900">
-                            {profile?.age || "Set"}
-                        </span>
+                        <span className="text-[15px] font-bold text-slate-900">{profile?.age || "Set"}</span>
                         <svg className="w-4 h-4 text-slate-300 transform rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg>
                     </div>
                 </button>
             </div>
         </section>
 
-        {/* 3. MEDICAL PROFILE */}
+        {/* 5. MEDICAL PROFILE */}
         <section>
             <div className="flex items-center gap-3 mb-4 px-2">
                 <ColoredIcon src={heartIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
@@ -279,7 +336,7 @@ const Settings = () => {
             </div>
         </section>
 
-        {/* 4. LIFESTYLE & ALLERGENS */}
+        {/* 6. LIFESTYLE & ALLERGENS */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <section>
                 <div className="flex items-center gap-3 mb-4 px-2">
@@ -318,7 +375,7 @@ const Settings = () => {
                             <button 
                               key={ing.label} 
                               onClick={() => toggleItem(profile?.restrictions, ing.label, 'restrictions')}
-                              className={`h-14 px-4 rounded-2xl font-bold text-xs border transition-all flex flex-col items-center justify-center gap-1 ${active ? 'bg-rose-500 text-white border-rose-500 shadow-md' : 'bg-white text-slate-600 border-white hover:border-slate-200'}`}
+                              className={`h-14 px-4 rounded-2xl font-bold text-xs border transition-all flex flex-col items-center justify-center gap-1 ${active ? 'bg-slate-900 text-white shadow-md' : 'bg-white text-slate-600 border-white hover:border-slate-200'}`}
                             >
                                 <span>{ing.label}</span>
                             </button>
@@ -328,12 +385,12 @@ const Settings = () => {
             </section>
         </div>
 
-        {/* 6. SMART SAVE */}
+        {/* 7. SMART SAVE */}
         <section className="pt-4 flex flex-col gap-4">
             <button 
               disabled={!hasChanges || isSaving}
               onClick={saveChanges}
-              className={`w-full py-5 font-black text-sm uppercase tracking-tight rounded-2xl transition-all shadow-xl active:scale-[0.98] ${hasChanges ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'}`}
+              className={`w-full py-5 font-black text-sm uppercase tracking-tight rounded-2xl transition-all shadow-xl active:scale-[0.98] ${hasChanges ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'}`}
             >
                 {isSaving ? 'Saving Profile...' : 'Save Changes'}
             </button>

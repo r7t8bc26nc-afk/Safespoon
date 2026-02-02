@@ -9,6 +9,7 @@ import { HelmetProvider } from 'react-helmet-async';
 // --- ICON IMPORTS ---
 import foodTrayIcon from './icons/food-tray.svg'; 
 import scannerIcon from './icons/scanner.svg';
+import cameraIcon from './icons/camera.svg'; 
 
 // Components
 import { Header } from './components/Header';
@@ -21,6 +22,9 @@ import Settings from './components/settings';
 import Onboarding from './components/Onboarding';
 import Login from './components/Login';
 import RestaurantMenu from './components/RestaurantMenu';
+
+// IMPORTANT: Ensure you have created this file from the previous step
+import BarcodeScannerPage from './components/BarcodeScannerPage'; 
 
 // --- HELPER COMPONENT ---
 const ColoredIcon = ({ src, colorClass, sizeClass = "w-6 h-6" }) => (
@@ -40,6 +44,57 @@ const ColoredIcon = ({ src, colorClass, sizeClass = "w-6 h-6" }) => (
   />
 );
 
+// --- SCANNER SELECTION MODAL ---
+const ScannerOptionModal = ({ isOpen, onClose, onSelectBarcode, onSelectPlate }) => {
+    return (
+        <AnimatePresence>
+            {isOpen && (
+                <div className="fixed inset-0 z-[11000] flex items-end sm:items-center justify-center p-4">
+                    <motion.div 
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                        className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" 
+                        onClick={onClose}
+                    />
+                    <motion.div 
+                        initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }}
+                        transition={{ type: "spring", damping: 25, stiffness: 300 }}
+                        className="bg-white w-full max-w-sm rounded-[2.5rem] p-6 relative z-10 shadow-2xl pb-10"
+                    >
+                        <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-6" />
+                        <h3 className="text-xl font-black text-slate-900 text-center mb-8">Choose Scanner</h3>
+                        
+                        <div className="space-y-4">
+                            {/* Option 1: Barcode Scanner -> Navigates to /scanner */}
+                            <button onClick={onSelectBarcode} className="w-full p-5 bg-slate-50 rounded-2xl flex items-center gap-5 active:scale-[0.98] transition-all hover:bg-slate-100 border border-slate-100">
+                                <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-slate-900">
+                                    <ColoredIcon src={scannerIcon} colorClass="bg-current" sizeClass="w-6 h-6" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block font-black text-lg text-slate-900">Barcode Scanner</span>
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">Packaged Foods</span>
+                                </div>
+                            </button>
+
+                            {/* Option 2: Plate Scanner -> Stays on Dashboard Overlay */}
+                            <button onClick={onSelectPlate} className="w-full p-5 bg-slate-900 rounded-2xl flex items-center gap-5 active:scale-[0.98] transition-all shadow-xl shadow-slate-200">
+                                <div className="w-12 h-12 bg-white/10 rounded-xl flex items-center justify-center text-white">
+                                    <ColoredIcon src={cameraIcon} colorClass="bg-current" sizeClass="w-6 h-6" />
+                                </div>
+                                <div className="text-left">
+                                    <span className="block font-black text-lg text-white">Plate Scanner</span>
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wide">AI Food Recognition</span>
+                                </div>
+                            </button>
+                        </div>
+                        
+                        <button onClick={onClose} className="w-full mt-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600">Cancel</button>
+                    </motion.div>
+                </div>
+            )}
+        </AnimatePresence>
+    );
+};
+
 // --- APP CONTENT ---
 
 function AppContent() {
@@ -49,7 +104,12 @@ function AppContent() {
   const [profileLoading, setProfileLoading] = useState(true);
   const [minLoadComplete, setMinLoadComplete] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
-  const [isSearching, setIsSearching] = useState(false);
+  
+  // Navigation & Modal States
+  const [isSearching, setIsSearching] = useState(false); 
+  const [isPlateScanning, setIsPlateScanning] = useState(false); 
+  const [scannerMenuOpen, setScannerMenuOpen] = useState(false); 
+  
   const [dashboardLocation, setDashboardLocation] = useState(null);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
 
@@ -93,10 +153,29 @@ function AppContent() {
     navigate('/restaurant'); 
   };
 
-  // --- CENTER BUTTON ACTION ---
-  const handleCameraClick = () => {
-      navigate('/');
-      setIsSearching(true);
+  // --- SCANNER LOGIC ---
+  const handleScannerClick = () => {
+      setScannerMenuOpen(true);
+  };
+
+  const activateBarcodeScanner = () => {
+      // 1. Close the modal
+      setScannerMenuOpen(false);
+      
+      // 2. IMPORTANT: Force "Searching" to false so the Dashboard "Add Food" modal does NOT show
+      setIsSearching(false);
+      setIsPlateScanning(false);
+
+      // 3. Navigate to the dedicated scanner page
+      navigate('/scanner'); 
+  };
+
+  const activatePlateScanner = () => {
+      setScannerMenuOpen(false);
+      // Plate scanner lives on the Dashboard as an overlay, so we go to '/'
+      navigate('/'); 
+      setIsPlateScanning(true);
+      setIsSearching(false);
   };
 
   const getHeaderTitle = () => {
@@ -107,6 +186,7 @@ function AppContent() {
     if (path.startsWith('/recipe/')) return 'Recipe Details';
     if (path === '/blog') return 'Articles & Blog';
     if (path === '/account') return 'Settings';
+    if (path === '/scanner') return 'Scanner';
     if (path === '/restaurant') return selectedRestaurant?.name || 'Product Details';
     return 'Safespoon';
   };
@@ -143,6 +223,8 @@ function AppContent() {
   }
 
   const shouldHideHeader = isSearching || 
+                           isPlateScanning ||
+                           location.pathname === '/scanner' || // Hide header on scanner page
                            location.pathname === '/restaurant' || 
                            location.pathname === '/' || 
                            location.pathname === '/meal-hub' || 
@@ -150,7 +232,7 @@ function AppContent() {
                            location.pathname === '/account';
 
   return (
-    <div className={`min-h-screen bg-white ${isSearching ? 'overflow-hidden' : ''}`}>
+    <div className={`min-h-screen bg-white ${isSearching || isPlateScanning || location.pathname === '/scanner' ? 'overflow-hidden' : ''}`}>
        
        {/* Sticky Header */}
        <div className={`${shouldHideHeader ? "hidden" : ""} sticky top-0 z-50 bg-white border-b border-slate-50 transition-all`}>
@@ -182,14 +264,28 @@ function AppContent() {
        </div>
 
        {/* Main Content */}
-       <main className={isSearching ? "w-full h-full p-0 m-0 fixed inset-0 z-[9998]" : (shouldHideHeader ? "w-full pt-0 pb-24" : "px-4 md:px-8 max-w-7xl mx-auto pt-4 pb-24")}>
+       <main className={isSearching || isPlateScanning || location.pathname === '/scanner' ? "w-full h-full p-0 m-0 fixed inset-0 z-[9998]" : (shouldHideHeader ? "w-full pt-0 pb-24" : "px-4 md:px-8 max-w-7xl mx-auto pt-4 pb-24")}>
           <Routes>
-              <Route path="/" element={<Dashboard setView={(view) => navigate(view === 'dashboard' ? '/' : `/${view}`)} profile={userProfile} onOpenMenu={handleOpenMenu} setIsSearching={setIsSearching} isSearching={isSearching} setDashboardLocation={setDashboardLocation}/>} />
+              <Route path="/" element={
+                  <Dashboard 
+                    setView={(view) => navigate(view === 'dashboard' ? '/' : `/${view}`)} 
+                    profile={userProfile} 
+                    onOpenMenu={handleOpenMenu} 
+                    setIsSearching={setIsSearching} 
+                    isSearching={isSearching} 
+                    isPlateScanning={isPlateScanning}
+                    setIsPlateScanning={setIsPlateScanning}
+                    setDashboardLocation={setDashboardLocation}
+                  />
+              } />
               <Route path="/meal-hub" element={<MealHub userProfile={userProfile} onOpenMenu={handleOpenMenu} />} />
               
               <Route path="/explore" element={<Navigate to="/meal-hub" replace />} />
               <Route path="/recipes" element={<Navigate to="/meal-hub" replace />} />
               
+              {/* === INDEPENDENT BARCODE SCANNER ROUTE === */}
+              <Route path="/scanner" element={<BarcodeScannerPage userProfile={userProfile} />} />
+
               <Route path="/recipe/:id" element={<RecipeDetail userProfile={userProfile} />} />
               <Route path="/blog" element={<Blog />} />
               <Route path="/account" element={<Settings />} />
@@ -209,8 +305,16 @@ function AppContent() {
           </Routes>
        </main>
 
+       {/* SCANNER OPTION MODAL */}
+       <ScannerOptionModal 
+          isOpen={scannerMenuOpen} 
+          onClose={() => setScannerMenuOpen(false)} 
+          onSelectBarcode={activateBarcodeScanner}
+          onSelectPlate={activatePlateScanner}
+       />
+
        {/* Mobile Tab Bar */}
-       {!isSearching && !location.pathname.startsWith('/restaurant') && !location.pathname.startsWith('/recipe/') && (
+       {!isSearching && !isPlateScanning && !location.pathname.startsWith('/restaurant') && location.pathname !== '/scanner' && !location.pathname.startsWith('/recipe/') && (
            <div className="md:hidden fixed bottom-0 left-0 w-full z-50 bg-white border-t border-slate-100 pb-safe-bottom">
               <div className="flex justify-between items-end px-2 h-[60px] relative">
                   
@@ -222,7 +326,7 @@ function AppContent() {
                       <span className={`text-[10px] font-bold ${location.pathname === '/' ? 'text-black' : 'text-slate-300'}`}>Dashboard</span>
                   </button>
 
-                  {/* 2. Meal Hub (UPDATED COLOR LOGIC) */}
+                  {/* 2. Meal Hub */}
                   <button onClick={() => navigate('/meal-hub')} className="flex flex-col items-center justify-center w-1/5 h-full pb-1">
                       <ColoredIcon 
                         src={foodTrayIcon} 
@@ -232,11 +336,11 @@ function AppContent() {
                       <span className={`text-[10px] font-bold ${location.pathname === '/meal-hub' ? 'text-black' : 'text-slate-300'}`}>Meals</span>
                   </button>
 
-                  {/* 3. CENTER FAB - SCANNER */}
+                  {/* 3. CENTER FAB - SCANNER (EMERALD, FLAT) */}
                   <div className="w-1/5 relative h-full flex justify-center items-end pointer-events-none">
                       <button 
-                          onClick={handleCameraClick} 
-                          className="pointer-events-auto absolute -top-8 w-16 h-16 bg-black rounded-full shadow-xl flex items-center justify-center text-white transform active:scale-95 transition-transform z-50 overflow-hidden"
+                          onClick={handleScannerClick} 
+                          className="pointer-events-auto absolute -top-8 w-16 h-16 bg-emerald-500 rounded-full flex items-center justify-center text-white transform active:scale-95 transition-transform z-50 overflow-hidden"
                       >
                           <ColoredIcon src={scannerIcon} colorClass="bg-white" sizeClass="w-7 h-7" />
                       </button>
