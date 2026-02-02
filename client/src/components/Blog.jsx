@@ -1,110 +1,86 @@
 import React, { useState, useEffect } from 'react';
-import { db } from '../firebase';
-import { collection, onSnapshot } from "firebase/firestore";
-import { Helmet } from "react-helmet";
+import { Helmet } from "react-helmet-async";
+import { motion, AnimatePresence } from 'framer-motion';
+
+// --- ICONS ---
+const ArrowLeft = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
+  </svg>
+);
+
+const ShareIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+  </svg>
+);
 
 // --- STATIC BLOG DATA ---
 const STATIC_POSTS = [
   {
-    id: 'navigating-dining-out',
-    title: "Navigating Dining Out with Food Allergies: A Survival Guide",
-    category: "Safety Tips",
+    id: 'dining-out-safely',
+    title: "How to Eat Out Without Fear: The Server Script",
+    category: "Dining Out",
     author: "Quajaee Simmons",
     date: "Jan 18, 2026",
-    readTime: "5 min read",
+    readTime: "5 min",
     image: "https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "Don't let food allergies keep you at home. Learn the essential questions to ask servers, how to read allergen menus, and red flags to watch for.",
-    content: `<p>For the 32 million Americans with food allergies, the simple question "Where should we eat?" can often induce panic rather than excitement. But having dietary restrictions shouldn't mean missing out on social experiences or the joy of a restaurant meal. The key is shifting from spontaneity to strategy.</p><p>The first line of defense is research. Before you even leave the house, check the restaurant's online presence. Most reputable chains now publish detailed allergen matrices that are far more reliable than a third-party blog post. However, an online menu is just a starting point. Use tools like the Safespoon Explorer to see verified reviews from others with your specific restrictions, as protocols can vary wildy by location.</p><h2>The "Chef Card" is Your Best Friend</h2><p>If you don't already carry one, print a "Chef Card." This is a small card that lists your specific allergies and the severity of the reaction. Handing this to your server removes the dangerous game of "telephone" between the front of house and the kitchen. It signals that your request is a medical necessity, not a lifestyle preference, and often prompts the manager to oversee your order personally.</p>`
+    excerpt: "Stop guessing. Use this exact script to communicate your allergies to restaurant staff.",
+    content: `
+      <p class="lead">For the 32 million Americans with food allergies, the simple question "Where should we eat?" can often induce panic. But with the right strategy, you can reclaim the joy of a restaurant meal.</p>
+      
+      <h3>The "Chef Card" Strategy</h3>
+      <p>Your first line of defense is a physical visual aid. We recommend carrying a "Chef Card" (available from <a href="https://www.foodallergy.org/resources/chef-cards" target="_blank" class="text-emerald-600 font-bold hover:underline">FARE</a>) that lists your specific allergies. Handing this to your server removes the dangerous game of "telephone" between the front of house and the kitchen.</p>
+      
+      <h3>The Script</h3>
+      <p>When ordering, be direct. Don't say "I'm avoiding gluten." Say: <br/><em>"I have a severe medical allergy to wheat. Can you please check with the chef if this dish can be prepared in a clean pan to avoid cross-contact?"</em></p>
+    `
   },
   {
-    id: 'understanding-cross-contact',
-    title: "The Hidden Danger: Understanding Cross-Contact in Kitchens",
-    category: "Health",
+    id: 'identifying-cross-contact',
+    title: "Spotting Hidden Allergens: A Kitchen Safety Guide",
+    category: "Kitchen Safety",
     author: "Quajaee Simmons",
     date: "Jan 05, 2026",
-    readTime: "4 min read",
+    readTime: "4 min",
     image: "https://images.unsplash.com/photo-1556910103-1c02745a30bf?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "Ordering a 'gluten-free' dish isn't enough if it's prepared on the same surface as regular bread. Learn the mechanics of cross-contact.",
-    content: `<p>You ordered the gluten-free pizza. The crust is certified gluten-free. But were the toppings grabbed from a bin full of crumbs? This is the reality of <strong>Cross-Contact</strong>.</p>`
+    excerpt: "Ordering 'gluten-free' isn't enough if the preparation surface is contaminated. Learn the red flags.",
+    content: `
+      <p>You ordered the gluten-free pizza. The crust is certified gluten-free. But were the toppings grabbed from a bin full of crumbs? This is the reality of <strong>Cross-Contact</strong>.</p>
+      <p>According to the <a href="https://www.fda.gov/food/food-allergensgluten-free-guidance-documents-regulatory-information/food-allergens-what-you-need-know" target="_blank" class="text-emerald-600 font-bold hover:underline">FDA</a>, even a microscopic amount of an allergen can trigger anaphylaxis. When dining out, ask if the kitchen uses dedicated fryers and cutting boards.</p>
+    `
   },
   {
-    id: 'top-allergy-chains',
-    title: "5 Fast-Casual Chains That Take Allergies Seriously",
-    category: "Reviews",
+    id: 'trusted-chains',
+    title: "Trusted Chains: 5 Spots with Verified Protocols",
+    category: "Recommendations",
     author: "Quajaee Simmons",
     date: "Dec 20, 2025",
-    readTime: "6 min read",
+    readTime: "6 min",
     image: "https://images.unsplash.com/photo-1554679665-f5537f187268?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "We ranked the top fast-casual spots based on allergen transparency and safety protocols. See why Chipotle and Sweetgreen made the list.",
-    content: `<p>Fast food used to be a "no-go" zone for the allergy-conscious. Fortunately, the rise of "fast-casual" dining has brought transparency to the forefront.</p>`
+    excerpt: "We audited 20 fast-casual chains on their transparency. See why Chipotle and Sweetgreen score high.",
+    content: `
+      <p>Fast food used to be a "no-go" zone for the allergy-conscious. Fortunately, the rise of "fast-casual" dining has brought transparency to the forefront.</p>
+      <h3>Top Performer: Chipotle</h3>
+      <p>Chipotle remains a gold standard because their menu is simple. Aside from the flour tortillas (wheat), almost everything else is naturally gluten-free.</p>
+    `
   },
   {
-    id: 'how-safespoon-works',
-    title: "Verified vs. Friendly: How Safespoon Rates Restaurants",
-    category: "Safety Tips",
-    author: "Quajaee Simmons",
-    date: "Dec 02, 2025",
-    readTime: "3 min read",
-    image: "https://images.unsplash.com/photo-1551218808-94e220e084d2?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "What makes a restaurant 'Verified Safe'? Inside the rigorous scoring system Safespoon uses to keep you safe.",
-    content: `<p>You’ve seen the badges on our dashboard: "High Rating," "Verified Safe," and "User Recommended." But what do they actually mean?</p>`
-  },
-  {
-    id: 'budget-allergy-eating',
-    title: "Eating Well on a Budget: Managing Allergies",
-    category: "Shopping",
+    id: 'budget-friendly-allergies',
+    title: "Stop Overpaying: The 'Allergy Tax' Survival Guide",
+    category: "Shopping Smart",
     author: "Quajaee Simmons",
     date: "Nov 15, 2025",
-    readTime: "5 min read",
+    readTime: "5 min",
     image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "Gluten-free bread costs twice as much. Dairy-free cheese is a luxury. Here are practical tips for handling dietary restrictions on a budget.",
-    content: `<p>It's often called the "Allergy Tax"—the phenomenon where safe versions of staple foods cost 200% more than their standard counterparts.</p>`
+    excerpt: "Gluten-free bread shouldn't bankrupt you. Here are 3 strategies to lower your grocery bill.",
+    content: `
+      <p>It's often called the "Allergy Tax"—the phenomenon where safe versions of staple foods cost 200% more than their standard counterparts. But eating safely doesn't have to be expensive.</p>
+      <h3>Focus on Whole Foods</h3>
+      <p>The most expensive items are usually processed "substitutes". Potatoes, rice, beans, and fresh meats are naturally allergen-free and significantly cheaper.</p>
+    `
   }
 ];
-
-// --- MOCK AD COMPONENT ---
-const MockAd = () => (
-  <div className="w-full py-6 my-8 col-span-full">
-     {/* Ad Label */}
-     <div className="flex items-center gap-2 mb-3 px-1">
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Sponsored Content</span>
-        <div className="h-px bg-gray-100 flex-1"></div>
-     </div>
-
-     {/* Ad Card */}
-     <div className="relative overflow-hidden rounded-[2rem] bg-gradient-to-br from-violet-900 to-fuchsia-900 text-white shadow-xl shadow-gray-200 group cursor-pointer h-auto min-h-[220px]">
-        {/* Decorative Blob */}
-        <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
-        
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between p-8 gap-6 h-full">
-           <div className="flex-1 text-center md:text-left z-20">
-               <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
-                   <div className="inline-block bg-white/20 backdrop-blur-sm border border-white/10 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest text-white">
-                       Partner
-                   </div>
-               </div>
-
-               <h2 className="text-2xl font-extrabold mb-2 tracking-tight">Thrive Market</h2>
-               <p className="text-gray-100 mb-6 max-w-sm mx-auto md:mx-0 text-sm opacity-90">
-                   Get <span className="text-white font-bold text-base">30% OFF</span> your first verified allergen-safe order.
-               </p>
-               
-               <button className="bg-white text-violet-900 px-6 py-2 rounded-xl text-xs font-bold hover:scale-105 transition-all shadow-lg active:scale-95">
-                   Shop Now
-               </button>
-           </div>
-           
-           <div className="relative w-full md:w-48 h-32 md:h-full shrink-0 rounded-2xl overflow-hidden shadow-2xl border-2 border-white/10 transform md:rotate-3 group-hover:rotate-0 transition-transform duration-500">
-               <img 
-                 src="https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80" 
-                 alt="Thrive Market" 
-                 className="object-cover w-full h-full"
-               />
-           </div>
-        </div>
-     </div>
-  </div>
-);
 
 export const Blog = () => {
   const [posts, setPosts] = useState([]);
@@ -113,14 +89,13 @@ export const Blog = () => {
 
   useEffect(() => {
     setLoading(true);
-    // Simulate fetching data
     setTimeout(() => {
         setPosts(STATIC_POSTS);
         setLoading(false);
-    }, 500);
+    }, 400);
   }, []);
 
-  // --- SEO HELPERS (JSON-LD) ---
+  // --- SEO HELPERS ---
   const generateListSchema = () => JSON.stringify({
       "@context": "https://schema.org",
       "@type": "ItemList",
@@ -138,140 +113,156 @@ export const Blog = () => {
       "headline": post.title,
       "image": [post.image],
       "datePublished": new Date(post.date).toISOString(),
-      "author": [{
-          "@type": "Person",
-          "name": post.author
-      }]
+      "author": [{ "@type": "Person", "name": post.author }],
+      "publisher": { "@type": "Organization", "name": "Safespoon" }
   });
 
   // --- ARTICLE READING VIEW ---
   if (selectedPost) {
       return (
-        <article className="w-full pb-24 animate-fade-in font-['Switzer']">
-            {/* SEO for Article */}
-            <Helmet>
-                <title>{selectedPost.title} | Safespoon Blog</title>
-                <meta name="description" content={selectedPost.excerpt} />
-                <script type="application/ld+json">{generateArticleSchema(selectedPost)}</script>
-            </Helmet>
-            
-            {/* Minimal Nav */}
-            <button onClick={() => setSelectedPost(null)} className="mb-6 flex items-center gap-2 text-gray-400 font-bold hover:text-gray-900 transition-colors text-sm uppercase tracking-wide group pt-6">
-                <span className="group-hover:-translate-x-1 transition-transform">←</span> Back to Blog
-            </button>
-
-            {/* Header */}
-            <header className="mb-8 text-left">
-                <div className="flex items-center gap-3 text-xs font-bold text-violet-600 uppercase tracking-wider mb-4">
-                    <span className="px-2.5 py-1 bg-violet-50 rounded-md border border-violet-100">{selectedPost.category}</span>
-                    <span className="text-gray-300">•</span>
-                    <span className="text-gray-500">{selectedPost.date}</span>
-                </div>
+        <AnimatePresence>
+            <motion.article 
+                initial={{ opacity: 0, y: 20 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                exit={{ opacity: 0, y: 20 }}
+                className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen z-50 fixed inset-0 overflow-y-auto"
+            >
+                {/* SEO for Article */}
+                <Helmet>
+                    <title>{selectedPost.title} | Safespoon Insights</title>
+                    <meta name="description" content={selectedPost.excerpt} />
+                    <script type="application/ld+json">{generateArticleSchema(selectedPost)}</script>
+                </Helmet>
                 
-                <h1 className="text-4xl md:text-6xl font-bold text-gray-900 leading-tight mb-6 tracking-tight">
-                    {selectedPost.title}
-                </h1>
+                {/* Navbar */}
+                <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 h-[60px] flex items-center justify-between">
+                    <button 
+                        onClick={() => setSelectedPost(null)} 
+                        className="flex items-center gap-1 text-emerald-600 font-bold active:opacity-50 transition-opacity"
+                    >
+                        <ArrowLeft />
+                        <span className="text-sm uppercase tracking-widest">Back</span>
+                    </button>
+                    <button className="text-emerald-600 active:opacity-50 transition-opacity">
+                        <ShareIcon />
+                    </button>
+                </div>
 
-                <div className="flex items-center gap-3 border-b border-gray-100 pb-8">
-                    <div className="h-10 w-10 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
-                         <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=random&color=fff&background=7c3aed`} alt="Author" />
+                <div className="bg-white min-h-screen">
+                    {/* Hero Image */}
+                    <div className="w-full aspect-video bg-slate-100 mb-8 overflow-hidden">
+                        <img src={selectedPost.image} alt={selectedPost.title} className="w-full h-full object-cover" />
                     </div>
-                    <div>
-                        <p className="text-sm font-bold text-gray-900">{selectedPost.author}</p>
-                        <p className="text-xs text-gray-400 font-medium">{selectedPost.readTime}</p>
+
+                    {/* Article Content */}
+                    <div className="px-6 md:px-8 max-w-2xl mx-auto pb-24">
+                        {/* Meta */}
+                        <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
+                            <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">{selectedPost.category}</span>
+                            <span>{selectedPost.date}</span>
+                        </div>
+                        
+                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-6 tracking-tight">
+                            {selectedPost.title}
+                        </h1>
+
+                        <div className="flex items-center gap-3 border-b border-slate-50 pb-8 mb-8">
+                            <div className="h-10 w-10 rounded-full bg-slate-200 overflow-hidden border border-white shadow-sm ring-1 ring-slate-100">
+                                <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=10b981&color=fff`} alt="Author" />
+                            </div>
+                            <div>
+                                <p className="text-sm font-bold text-slate-900 leading-tight">{selectedPost.author}</p>
+                                <p className="text-[10px] text-slate-400 font-bold tracking-tight capitalize">{selectedPost.readTime} Read</p>
+                            </div>
+                        </div>
+
+                        {/* Prose Body */}
+                        <div 
+                            className="prose prose-lg prose-slate max-w-none 
+                            prose-headings:font-black prose-headings:tracking-tight prose-headings:text-slate-900 
+                            prose-p:text-slate-600 prose-p:leading-loose prose-p:font-medium prose-p:text-base
+                            prose-a:text-emerald-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline
+                            prose-strong:text-slate-900 prose-strong:font-black"
+                        >
+                            <div dangerouslySetInnerHTML={{ __html: selectedPost.content }} />
+                        </div>
                     </div>
                 </div>
-            </header>
-
-            {/* Feature Image */}
-            <div className="w-full h-64 md:h-[450px] bg-gray-100 mb-10 rounded-[2rem] overflow-hidden shadow-sm">
-                <img src={selectedPost.image} alt={selectedPost.title} className="w-full h-full object-cover" />
-            </div>
-
-            {/* Article Body */}
-            <div className="prose prose-lg prose-gray max-w-none font-serif leading-loose text-gray-700">
-                <div dangerouslySetInnerHTML={{ __html: selectedPost.content }} />
-            </div>
-
-            {/* In-Article Ad */}
-            <MockAd />
-        </article>
+            </motion.article>
+        </AnimatePresence>
       );
   }
 
   // --- LIST VIEW ---
   return (
-    <div className="w-full space-y-6 pb-24 font-['Switzer']">
-      {/* SEO for List */}
+    <div className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
       <Helmet>
-        <title>Safespoon Blog | Allergy Tips & Reviews</title>
-        <meta name="description" content="Read the latest articles on navigating dining out with food allergies, restaurant reviews, and safety tips." />
+        <title>Safespoon Insights | Food Safety & Allergy Tips</title>
+        <meta name="description" content="Expert guides on dining out safely, understanding cross-contact, and managing food allergies." />
         <script type="application/ld+json">{generateListSchema()}</script>
       </Helmet>
-      
-      {/* Heading - HEADER REMOVED PER REQUEST */}
-      {/* Category Buttons Removed Per Request */}
 
-      {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
-             {[1,2,3].map(i => <div key={i} className="h-64 bg-gray-50 animate-pulse rounded-[2rem]"></div>)}
-          </div>
-      ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
-              {posts.map((post, index) => (
-                  <React.Fragment key={post.id}>
-                    {/* Insert Premium Ad after the 2nd post */}
-                    {index === 2 && <MockAd />}
+      {/* Header - MATCHING DASHBOARD.JSX STYLE */}
+      <div className="pt-10 pb-4 px-4">
+         <div className="flex flex-col">
+            <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">
+                Community<br/>
+                <span className="text-emerald-600">Insights</span>
+            </h1>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
+                Food Safety & Allergy Tips
+            </p>
+         </div>
+      </div>
 
-                    <article 
-                        className="bg-white rounded-[2rem] overflow-hidden border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer group flex flex-col h-full" 
-                        onClick={() => setSelectedPost(post)}
-                    >
-                        {/* Image - 16:9 Aspect Ratio to match visual standard */}
-                        <div className="h-48 w-full relative bg-gray-50 shrink-0">
-                            <img 
-                                src={post.image} 
-                                alt={post.title} 
-                                className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-700 ease-out" 
-                            />
+      {/* Feed - MATCHING DASHBOARD CARD STYLE */}
+      <div className="px-4 space-y-4">
+        {loading ? (
+            <div className="space-y-4">
+               {[1,2,3].map(i => <div key={i} className="h-64 bg-white animate-pulse rounded-[1.5rem] border border-slate-50"></div>)}
+            </div>
+        ) : (
+            posts.map((post) => (
+                <article 
+                    key={post.id}
+                    className="bg-white rounded-[1.5rem] p-3 shadow-sm border border-slate-50 active:scale-[0.98] transition-all cursor-pointer group" 
+                    onClick={() => setSelectedPost(post)}
+                >
+                    {/* Image Container - Rounded corners to match inner padding */}
+                    <div className="h-48 w-full relative bg-slate-100 rounded-2xl overflow-hidden mb-4">
+                        <img 
+                            src={post.image} 
+                            alt={post.title} 
+                            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" 
+                        />
+                        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-emerald-600 shadow-sm border border-white/20">
+                            {post.category}
                         </div>
+                    </div>
 
-                        {/* Content Container */}
-                        <div className="p-5 flex flex-col flex-grow">
-                            {/* Meta */}
-                            <div className="mb-2 flex items-center gap-2 text-[10px] font-medium capitalize tracking-tight text-violet-600">
-                                <span className="bg-violet-50 px-2 py-1 rounded border border-violet-100">{post.category}</span>
-                                <span className="text-gray-400">• {post.readTime}</span>
-                            </div>
+                    {/* Content */}
+                    <div className="px-2 pb-2">
+                        <h2 className="text-lg font-black text-slate-900 leading-tight mb-2 line-clamp-2">
+                            {post.title}
+                        </h2>
+                        <p className="text-xs text-slate-400 font-bold line-clamp-2 leading-relaxed mb-4">
+                            {post.excerpt}
+                        </p>
 
-                            {/* Title - Large Text */}
-                            <h2 className="text-2xl font-bold text-gray-900 leading-tight group-hover:text-violet-700 transition-colors line-clamp-2 mb-2">
-                                {post.title}
-                            </h2>
-
-                            {/* Excerpt */}
-                            <p className="text-xs text-gray-500 font-medium line-clamp-2 leading-relaxed mb-4">
-                                {post.excerpt}
-                            </p>
-
-                            {/* Footer - Author & CTA */}
-                            <div className="flex items-center justify-between border-t border-gray-50 pt-3 mt-auto">
-                                <div className="flex items-center gap-2">
-                                    <div className="h-6 w-6 rounded-full bg-gray-200 overflow-hidden border border-white shadow-sm">
-                                        <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=random&color=fff&background=7c3aed`} alt="" />
-                                    </div>
-                                    <span className="text-[10px] font-regular text-gray-900 tracking-wide">{post.author}</span>
+                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
+                            <div className="flex items-center gap-2">
+                                <div className="h-5 w-5 rounded-full bg-slate-200 overflow-hidden">
+                                     <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=10b981&color=fff`} alt="" />
                                 </div>
-                                <span className="text-[10px] font-medium capitalize tracking-tight text-violet-600 group-hover:translate-x-1 transition-transform">
-                                    Read →
-                                </span>
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{post.readTime}</span>
                             </div>
+                            <span className="text-[10px] font-black text-emerald-600 capitalize tracking-tight group-hover:translate-x-1 transition-transform">Read</span>
                         </div>
-                    </article>
-                  </React.Fragment>
-              ))}
-          </div>
-      )}
+                    </div>
+                </article>
+            ))
+        )}
+      </div>
     </div>
   );
 };

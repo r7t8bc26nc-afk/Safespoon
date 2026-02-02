@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   getAuth, 
   signInWithEmailAndPassword, 
@@ -6,88 +6,40 @@ import {
   GoogleAuthProvider, 
   signInWithPopup 
 } from "firebase/auth";
+import { Helmet } from "react-helmet-async";
+import { motion, AnimatePresence } from 'framer-motion';
+
+const GoogleLogo = () => (
+  <svg className="w-5 h-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26.81-.58z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+);
 
 const Login = ({ onLogin }) => { 
   const [isSignup, setIsSignup] = useState(false);
-  
-  // Form State
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  
-  // UX State
-  const [showPassword, setShowPassword] = useState(false); // Added Toggle
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   
-  // Validation State
-  const [passwordStrength, setPasswordStrength] = useState(0);
-  const [passwordSuggestion, setPasswordSuggestion] = useState('');
-  const [passwordsMatch, setPasswordsMatch] = useState(true);
-
   const auth = getAuth();
-
-  // Password Logic (Kept your existing logic)
-  useEffect(() => {
-    let score = 0;
-    let suggestion = '';
-
-    if (!password) {
-        setPasswordStrength(0);
-        setPasswordSuggestion('');
-        return;
-    }
-
-    if (password.length > 5) score += 1;
-    if (password.length > 9) score += 1;
-    if (/[A-Z]/.test(password)) score += 1;
-    if (/[0-9!@#$%^&*]/.test(password)) score += 1;
-
-    if (password.length < 6) suggestion = "Use at least 6 characters.";
-    else if (!/[0-9]/.test(password)) suggestion = "Add a number (0-9).";
-    else if (!/[!@#$%^&*]/.test(password)) suggestion = "Add a special character (!@#$).";
-    else if (!/[A-Z]/.test(password)) suggestion = "Add an uppercase letter.";
-    else suggestion = "Great password!";
-
-    setPasswordStrength(score);
-    setPasswordSuggestion(suggestion);
-
-    if (confirmPassword) {
-        setPasswordsMatch(password === confirmPassword);
-    } else {
-        setPasswordsMatch(true);
-    }
-  }, [password, confirmPassword]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-
-    if (isSignup) {
-        if (password !== confirmPassword) {
-            setError("Passwords do not match.");
-            return;
-        }
-        if (passwordStrength < 2) {
-            setError("Please choose a stronger password.");
-            return;
-        }
+    if (isSignup && password !== confirmPassword) {
+        setError("Passwords do not match.");
+        return;
     }
-
     setLoading(true);
-
     try {
-      if (isSignup) {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
+      if (isSignup) await createUserWithEmailAndPassword(auth, email, password);
+      else await signInWithEmailAndPassword(auth, email, password);
       if (onLogin) onLogin(); 
     } catch (err) {
-      console.error(err);
       if (err.code === 'auth/invalid-credential') setError("Incorrect email or password.");
-      else if (err.code === 'auth/email-already-in-use') setError("That email is already registered.");
-      else if (err.code === 'auth/weak-password') setError("Password should be at least 6 characters.");
+      else if (err.code === 'auth/email-already-in-use') setError("Email already registered.");
+      else if (err.code === 'auth/weak-password') setError("Password must be at least 6 characters.");
       else setError("Authentication failed. Please try again.");
     } finally {
       setLoading(false);
@@ -95,237 +47,172 @@ const Login = ({ onLogin }) => {
   };
 
   const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
     try {
-      await signInWithPopup(auth, provider);
+      await signInWithPopup(auth, new GoogleAuthProvider());
       if (onLogin) onLogin();
-    } catch (err) {
-      console.error(err);
-      setError("Unable to connect with Google.");
-    }
+    } catch (err) { setError("Unable to connect with Google."); }
   };
-
-  const handleGuestAccess = () => {
-    if (onLogin) onLogin({ isGuest: true }); 
-  };
-
-  const getStrengthColor = () => {
-    if (passwordStrength === 0) return 'bg-slate-200';
-    if (passwordStrength === 1) return 'bg-rose-500';
-    if (passwordStrength === 2) return 'bg-amber-500';
-    if (passwordStrength === 3) return 'bg-emerald-400';
-    return 'bg-emerald-600';
-  };
-
-  const getStrengthLabel = () => {
-    if (passwordStrength === 0) return '';
-    if (passwordStrength === 1) return 'Weak';
-    if (passwordStrength === 2) return 'Fair';
-    if (passwordStrength === 3) return 'Good';
-    return 'Strong';
-  };
-
-  // Shared Input Styles
-  const inputContainerClass = "w-full h-14 bg-slate-50 border-2 border-transparent focus-within:border-violet-100 focus-within:bg-white rounded-2xl px-4 flex items-center transition-all";
-  const inputClass = "flex-1 bg-transparent h-full font-bold text-slate-900 outline-none placeholder-slate-300 ml-3";
-  const labelClass = "text-xs font-bold text-slate-700 uppercase tracking-widest ml-1 mb-1.5 block"; // Darker for readability
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row font-['Host_Grotesk'] text-slate-900 bg-white overflow-hidden animate-fade-in relative">
-      
-      {/* --- LEFT SIDE (Visuals - Kept Intact) --- */}
-      <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-slate-900 relative flex-col justify-between p-12 text-white overflow-hidden">
-        <div className="absolute inset-0 z-0">
-          <img src="https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=1200&q=80" className="w-full h-full object-cover opacity-40 mix-blend-overlay" alt="Food background" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-violet-900/20"></div>
+    <div className="min-h-screen flex flex-col md:flex-row font-['Switzer'] text-slate-900 bg-white overflow-hidden">
+      <Helmet>
+        <title>{isSignup ? "Create Account | Safespoon" : "Sign In | Safespoon"}</title>
+        <meta name="description" content="Login to Safespoon. Your personal food safety assistant for navigating allergies and dietary restrictions." />
+      </Helmet>
+
+      {/* --- LEFT SIDE: BRANDING --- */}
+      <div className="hidden md:flex md:w-5/12 lg:w-1/2 bg-slate-50 relative flex-col justify-between p-16 overflow-hidden border-r border-slate-100">
+        <div className="relative z-20">
+            <h1 className="text-3xl font-black tracking-tight text-slate-900">Safespoon</h1>
         </div>
-        <div className="relative z-10"><h1 className="text-3xl font-black tracking-tighter">Safespoon</h1></div>
-        <div className="relative z-10 space-y-8">
-          <blockquote className="text-3xl font-bold leading-tight">"Stop guessing. Start knowing.<br/>Dining out is finally safe again."</blockquote>
-          <div className="bg-white/10 backdrop-blur-md border border-white/10 p-6 rounded-3xl">
-             <div className="flex items-center gap-3 mb-2"><span className="text-xl">👑</span><span className="font-bold text-sm uppercase tracking-widest text-violet-200">Safespoon Pro</span></div>
-             <p className="text-sm text-slate-300 leading-relaxed">Unlock daily intake tracking, automated allergen alerts, and detailed macro breakdowns. Your personal health shield, activated.</p>
-          </div>
+        <div className="relative z-20 max-w-lg">
+            <h2 className="text-5xl font-black leading-tight mb-6 tracking-tight text-slate-900">
+                Eat without<br/> 
+                <span className="text-emerald-600">hesitation.</span>
+            </h2>
+            <p className="text-lg text-slate-500 leading-relaxed font-medium mb-10">
+                The most advanced food scanner for allergies, medical conditions, and lifestyle diets.
+            </p>
+        </div>
+        <div className="relative z-20 text-xs text-slate-400 font-bold uppercase tracking-widest">
+            © {new Date().getFullYear()} Safespoon Inc.
         </div>
       </div>
 
-      {/* --- RIGHT SIDE (Form - Updated Elements) --- */}
-      <div className="flex-1 flex flex-col h-full relative overflow-y-auto">
-        <div className="absolute top-0 left-0 w-full p-6 flex items-center justify-between z-40">
-           <div className="md:hidden"><span className="text-2xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-violet-600 to-fuchsia-600">Safespoon</span></div>
-           <div className="hidden md:block"></div>
+      {/* --- RIGHT SIDE: FORM --- */}
+      <div className="flex-1 flex flex-col h-full relative overflow-y-auto bg-white">
+        
+        {/* Mobile Header (Button Removed) */}
+        <div className="md:hidden pt-safe-top px-6 pb-2 flex justify-between items-center bg-white z-20 mt-6">
+           <span className="text-xl font-black tracking-tight text-slate-900">Safespoon</span>
+           {/* Button removed here per request */}
         </div>
 
-        <div className="flex-1 flex flex-col justify-center relative z-10 py-12">
-          <div className="w-full max-w-md mx-auto p-8 pt-12 md:pt-8">
-              <div className="text-center mb-10">
-                  <h2 className="text-3xl font-bold text-slate-900 tracking-tight mb-2">
-                      {isSignup ? "Create Account" : "Welcome back"}
-                  </h2>
-                  <p className="text-slate-400 font-medium text-base leading-relaxed">
-                      {isSignup ? "The smartest way to find food that fits your life." : "Access your personal dietary dashboard."}
-                  </p>
-              </div>
-
-              <form onSubmit={handleSubmit} className="space-y-5">
+        <div className="flex-1 flex flex-col justify-center px-6 md:px-12 lg:px-24 py-12 max-w-xl mx-auto w-full">
+            <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="w-full">
                 
-                {/* Email Field */}
-                <div className="space-y-1 text-left">
-                  <label className={labelClass}>Email</label>
-                  <div className={inputContainerClass}>
-                    {/* Icon */}
-                    <svg className="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
-                    <input 
-                        type="email" 
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        required 
-                        className={inputClass}
-                        placeholder="name@example.com"
-                    />
-                  </div>
+                {/* Changed text-center to text-left */}
+                <div className="mb-8 text-left">
+                    <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-0">
+                        {isSignup ? "Get started" : "Welcome back"}
+                    </h1>
+                    <p className="text-slate-500 font-medium text-lg">
+                        {isSignup ? "Create your free account." : "Sign in to continue."}
+                    </p>
                 </div>
 
-                {/* Password Field */}
-                <div className="space-y-1 text-left">
-                  <div className="flex justify-between items-center">
-                    <label className={labelClass}>Password</label>
-                    {/* Added Forgot Password Link */}
-                    {!isSignup && (
-                        <button type="button" className="text-[10px] font-bold text-violet-600 hover:text-violet-700 uppercase tracking-wide">
-                            Forgot Password?
-                        </button>
-                    )}
-                  </div>
-                  
-                  <div className={inputContainerClass}>
-                    {/* Lock Icon */}
-                    <svg className="w-5 h-5 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                <form onSubmit={handleSubmit} className="space-y-6">
                     
-                    <input 
-                        type={showPassword ? "text" : "password"} 
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required 
-                        className={inputClass}
-                        placeholder="••••••••"
-                    />
-                    
-                    {/* Show/Hide Toggle */}
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-slate-400 hover:text-slate-600">
-                        {showPassword ? (
-                            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" /></svg>
-                        ) : (
-                            <svg className="w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>
-                        )}
-                    </button>
-                  </div>
-
-                  {/* Password Strength UI (Only Signup) */}
-                  {isSignup && password.length > 0 && (
-                    <div className="animate-in slide-in-from-top-1 fade-in duration-300">
-                        <div className="flex gap-1 h-1 mt-2 px-1 mb-2">
-                            {[1, 2, 3, 4].map((step) => (
-                                <div key={step} className={`h-full rounded-full flex-1 transition-all duration-500 ${passwordStrength >= step ? getStrengthColor() : 'bg-slate-100'}`}></div>
-                            ))}
-                        </div>
-                        <div className="flex justify-between items-start px-1">
-                            <span className={`text-[10px] font-medium uppercase tracking-widest transition-colors ${getStrengthColor().replace('bg-', 'text-')}`}>
-                                {getStrengthLabel()}
-                            </span>
-                            <span className="text-[10px] font-medium text-slate-400 text-right">
-                                {passwordSuggestion}
-                            </span>
-                        </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Confirm Password (Only Signup) */}
-                {isSignup && (
-                    <div className="space-y-1 text-left animate-fade-in">
-                        <label className={labelClass}>Confirm Password</label>
-                        <div className={`w-full h-14 bg-slate-50 border-2 rounded-2xl px-4 flex items-center transition-all ${!passwordsMatch ? 'border-rose-200 bg-rose-50' : 'border-transparent focus-within:border-violet-100 focus-within:bg-white'}`}>
-                            <svg className={`w-5 h-5 ${!passwordsMatch ? 'text-rose-400' : 'text-slate-400'}`} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                    <div className="space-y-4">
+                        {/* Email Input */}
+                        <div className="group bg-slate-50 focus-within:bg-white border-2 border-transparent focus-within:border-slate-900 focus-within:ring-4 focus-within:ring-slate-100 rounded-2xl transition-all duration-200">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 mb-0 group-focus-within:text-slate-900 transition-colors">
+                                Email
+                            </label>
                             <input 
-                                type="password" 
-                                value={confirmPassword}
-                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                type="email" 
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
                                 required 
-                                className={inputClass}
-                                placeholder="••••••••"
+                                className="w-full bg-transparent px-4 pb-3 pt-1 text-lg font-bold text-slate-900 outline-none placeholder:text-slate-300"
+                                placeholder="name@example.com"
                             />
                         </div>
-                        {!passwordsMatch && (
-                            <div className="flex items-center gap-1.5 ml-1 animate-in slide-in-from-top-1 fade-in duration-200">
-                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500"></div>
-                                <span className="text-xs font-medium text-rose-500">Passwords don't match</span>
-                            </div>
-                        )}
+
+                        {/* Password Input */}
+                        <div className="group bg-slate-50 focus-within:bg-white border-2 border-transparent focus-within:border-slate-900 focus-within:ring-4 focus-within:ring-slate-100 rounded-2xl transition-all duration-200 relative">
+                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 mb-0 group-focus-within:text-slate-900 transition-colors">
+                                Password
+                            </label>
+                            <input 
+                                type={showPassword ? "text" : "password"} 
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                required 
+                                className="w-full bg-transparent px-4 pb-3 pt-1 text-lg font-bold text-slate-900 outline-none placeholder:text-slate-300"
+                                placeholder="••••••••"
+                            />
+                            <button 
+                                type="button"
+                                onClick={() => setShowPassword(!showPassword)}
+                                className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 p-2"
+                            >
+                                {showPassword ? "Hide" : "Show"}
+                            </button>
+                        </div>
+
+                        {/* Confirm Password (Signup Only) */}
+                        <AnimatePresence>
+                            {isSignup && (
+                                <motion.div 
+                                    initial={{ height: 0, opacity: 0 }} 
+                                    animate={{ height: 'auto', opacity: 1 }} 
+                                    exit={{ height: 0, opacity: 0 }}
+                                    className="overflow-hidden"
+                                >
+                                    <div className="group bg-slate-50 focus-within:bg-white border-2 border-transparent focus-within:border-slate-900 focus-within:ring-4 focus-within:ring-slate-100 rounded-2xl transition-all duration-200 mt-4">
+                                        <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 mb-0 group-focus-within:text-slate-900 transition-colors">
+                                            Confirm Password
+                                        </label>
+                                        <input 
+                                            type="password" 
+                                            value={confirmPassword}
+                                            onChange={(e) => setConfirmPassword(e.target.value)}
+                                            required 
+                                            className="w-full bg-transparent px-4 pb-3 pt-1 text-lg font-bold text-slate-900 outline-none placeholder:text-slate-300"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
-                )}
 
-                {error && (
-                  <div className="text-rose-500 text-xs font-bold text-center bg-rose-50 py-3 rounded-xl border border-rose-100 flex items-center justify-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-                    {error}
-                  </div>
-                )}
+                    {error && (
+                        <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 flex items-start gap-3">
+                            <svg className="w-5 h-5 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                            <p className="text-xs font-bold text-rose-600 pt-0.5">{error}</p>
+                        </div>
+                    )}
 
-                {/* Primary Button (Updated to Violet) */}
-                <button 
-                  type="submit" 
-                  disabled={loading}
-                  className="w-full h-16 bg-violet-600 text-white font-bold text-lg rounded-2xl hover:scale-[1.02] hover:bg-violet-700 active:scale-[0.98] transition-all shadow-xl shadow-violet-200 mt-4 disabled:opacity-70 flex items-center justify-center gap-2"
-                >
-                  {loading && <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>}
-                  {loading ? "Verifying..." : (isSignup ? "Create Account" : "Login")}
+                    <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="w-full h-16 bg-slate-900 text-white font-bold text-lg rounded-2xl hover:bg-slate-800 active:scale-[0.98] transition-all shadow-xl shadow-slate-200 mt-2 flex items-center justify-center disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
+                        {loading ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (isSignup ? "Create Account" : "Sign In")}
+                    </button>
+                    
+                    {!isSignup && (
+                        <div className="text-center">
+                            <button type="button" className="text-xs font-bold text-slate-400 hover:text-slate-900 uppercase tracking-widest transition-colors">
+                                Forgot Password?
+                            </button>
+                        </div>
+                    )}
+                </form>
+
+                <div className="relative flex py-8 items-center">
+                    <div className="flex-grow border-t border-slate-100"></div>
+                    <span className="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-300 uppercase tracking-widest">Or continue with</span>
+                    <div className="flex-grow border-t border-slate-100"></div>
+                </div>
+
+                <button type="button" onClick={handleGoogleLogin} className="w-full h-14 flex items-center justify-center bg-white text-slate-900 font-bold rounded-2xl border-2 border-slate-100 active:bg-slate-50 transition-all hover:border-slate-200">
+                    <span className="mr-3"><GoogleLogo /></span> Google
                 </button>
-              </form>
 
-              <div className="relative flex py-8 items-center">
-                <div className="flex-grow border-t border-slate-100"></div>
-                <span className="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Or</span>
-                <div className="flex-grow border-t border-slate-100"></div>
-              </div>
-
-              <div className="space-y-3">
-                <button 
-                    onClick={handleGoogleLogin} 
-                    className="w-full h-14 flex items-center justify-center gap-3 bg-white border-2 border-slate-100 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 hover:border-slate-200 transition-all active:scale-[0.98]"
-                >
-                    <svg className="h-5 w-5" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26.81-.58z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
-                    Continue with Google
-                </button>
-              </div>
-
-              <p className="text-center text-sm text-slate-500 font-medium mt-8">
-                {isSignup ? "Returning user?" : "Don't have an account?"}
-                <button 
-                  onClick={() => { setIsSignup(!isSignup); setError(''); setPasswordsMatch(true); setPasswordSuggestion(''); }} 
-                  className="font-bold text-violet-600 hover:text-violet-700 ml-1 transition-colors"
-                >
-                  {isSignup ? "Login" : "Sign up"}
-                </button>
-              </p>
-          </div>
-          
-          <div className="mt-auto pt-6 pb-8 border-t border-slate-50 px-8">
-             <div className="flex flex-wrap justify-center gap-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                <a href="#" className="hover:text-slate-600 transition-colors">Terms of Use</a>
-                <a href="#" className="hover:text-slate-600 transition-colors">Privacy Policy</a>
-                <a href="#" className="hover:text-slate-600 transition-colors">Help Center</a>
-             </div>
-             <p className="text-center text-[10px] text-slate-300 font-medium mt-4">
-                © {new Date().getFullYear()} Safespoon Inc. All rights reserved.
-             </p>
-          </div>
+                <div className="mt-8 text-center md:hidden">
+                    <p className="text-sm font-medium text-slate-400">
+                        {isSignup ? "Already have an account?" : "Don't have an account?"}
+                        <button onClick={() => { setIsSignup(!isSignup); setError(''); }} className="ml-1 text-slate-900 font-bold underline decoration-2 decoration-emerald-400">
+                            {isSignup ? "Log In" : "Sign Up"}
+                        </button>
+                    </p>
+                </div>
+            </motion.div>
         </div>
       </div>
-      <style dangerouslySetInnerHTML={{ __html: `
-        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-        .animate-fade-in { animation: fade-in 0.8s ease-out forwards; }
-      `}} />
     </div>
   );
 };

@@ -2,135 +2,43 @@ import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate, Navigate } from 'react-router-dom'; 
 import { getAuth, onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from './firebase'; // Fixed import path
+import { db } from './firebase'; 
 import { motion, AnimatePresence } from 'framer-motion';
+import { HelmetProvider } from 'react-helmet-async'; 
+
+// --- ICON IMPORTS ---
+import foodTrayIcon from './icons/food-tray.svg'; 
+import scannerIcon from './icons/scanner.svg';
 
 // Components
 import { Header } from './components/Header';
 import Dashboard from './components/Dashboard';
 import { GuestDashboard } from './components/GuestDashboard'; 
 import { MealHub } from './components/MealHub'; 
-import { RecipeDetail } from './components/RecipeDetail'; 
+import RecipeDetail from './components/RecipeDetail'; 
 import { Blog } from './components/Blog';
 import Settings from './components/settings';
 import Onboarding from './components/Onboarding';
 import Login from './components/Login';
 import RestaurantMenu from './components/RestaurantMenu';
 
-// --- NEW COMPONENTS: SCAN MODAL & PAYWALL ---
-
-const PremiumPaywall = ({ onClose }) => (
-  <motion.div 
-    initial={{ opacity: 0, scale: 0.95 }}
-    animate={{ opacity: 1, scale: 1 }}
-    exit={{ opacity: 0, scale: 0.95 }}
-    className="fixed inset-0 z-[10001] flex items-center justify-center px-6"
-  >
-    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={onClose} />
-    <div className="relative w-full max-w-sm bg-slate-900 rounded-[2.5rem] p-8 overflow-hidden shadow-2xl border border-slate-700">
-        {/* Background Effects */}
-        <div className="absolute -top-32 -right-32 w-80 h-80 bg-emerald-500/20 rounded-full blur-[80px]" />
-        <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-slate-900 to-transparent" />
-
-        <div className="relative z-10 text-center">
-            <div className="w-16 h-16 mx-auto bg-gradient-to-br from-emerald-400 to-emerald-600 rounded-2xl flex items-center justify-center mb-6 shadow-[0_0_30px_rgba(16,185,129,0.4)] rotate-3">
-                <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
-            </div>
-
-            <h2 className="text-3xl font-black text-white mb-2 tracking-tight leading-tight">
-                Unlock Visual <br/><span className="text-emerald-400">Intelligence</span>
-            </h2>
-            <p className="text-slate-400 text-sm font-medium mb-8 leading-relaxed px-2">
-                Identify nutritional data instantly. Point your camera at any meal or barcode for real-time AI analysis.
-            </p>
-
-            <div className="space-y-3 mb-8 text-left px-4">
-                <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">✓</div>
-                    <span className="text-slate-300 text-sm font-bold">Unlimited Barcode Scans</span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">✓</div>
-                    <span className="text-slate-300 text-sm font-bold">AI Meal Recognition</span>
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400">✓</div>
-                    <span className="text-slate-300 text-sm font-bold">Macro & Micro Breakdown</span>
-                </div>
-            </div>
-
-            <button className="w-full py-4 bg-white text-slate-900 text-sm font-black uppercase tracking-widest rounded-2xl shadow-xl active:scale-95 transition-all mb-4">
-                Start Free 7-Day Trial
-            </button>
-            <button onClick={onClose} className="text-slate-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">
-                Maybe Later
-            </button>
-        </div>
-    </div>
-  </motion.div>
+// --- HELPER COMPONENT ---
+const ColoredIcon = ({ src, colorClass, sizeClass = "w-6 h-6" }) => (
+  <div 
+    className={`${sizeClass} ${colorClass}`}
+    style={{
+      WebkitMaskImage: `url("${src}")`,
+      WebkitMaskSize: 'contain',
+      WebkitMaskRepeat: 'no-repeat',
+      WebkitMaskPosition: 'center',
+      maskImage: `url("${src}")`,
+      maskSize: 'contain',
+      maskRepeat: 'no-repeat',
+      maskPosition: 'center',
+      backgroundColor: 'currentColor'
+    }}
+  />
 );
-
-const ScanModal = ({ isOpen, onClose, isPremium, onScanBarcode, onScanMeal }) => {
-    if (!isOpen) return null;
-
-    // If not premium, show paywall immediately inside the modal flow
-    if (!isPremium) {
-        return <PremiumPaywall onClose={onClose} />;
-    }
-
-    return (
-        <motion.div 
-            initial={{ opacity: 0, y: 100 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 100 }}
-            className="fixed inset-0 z-[10000] flex flex-col justify-end pointer-events-none"
-        >
-            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm pointer-events-auto transition-opacity" onClick={onClose} />
-            
-            {/* GAUGE CLUSTER UI */}
-            <div className="bg-slate-900 w-full rounded-t-[2.5rem] p-8 pb-12 pointer-events-auto relative overflow-hidden border-t border-slate-800">
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-slate-700 rounded-b-full opacity-50" />
-                
-                <h3 className="text-center text-white font-black text-lg uppercase tracking-widest mb-10">Select Input Source</h3>
-
-                <div className="grid grid-cols-2 gap-6">
-                    {/* OPTION 1: BARCODE */}
-                    <button 
-                        onClick={onScanBarcode}
-                        className="group relative aspect-square bg-slate-800 rounded-3xl border border-slate-700 flex flex-col items-center justify-center active:scale-95 transition-all overflow-hidden"
-                    >
-                         <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                         <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mb-4 shadow-lg border border-slate-700 group-hover:border-emerald-500/50 transition-colors">
-                            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                            </svg>
-                         </div>
-                         <span className="text-white font-bold text-sm tracking-wide">Barcode Scan</span>
-                    </button>
-
-                    {/* OPTION 2: MEAL AI */}
-                    <button 
-                        onClick={onScanMeal}
-                        className="group relative aspect-square bg-slate-800 rounded-3xl border border-slate-700 flex flex-col items-center justify-center active:scale-95 transition-all overflow-hidden"
-                    >
-                         <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                         <div className="w-16 h-16 bg-slate-900 rounded-full flex items-center justify-center mb-4 shadow-lg border border-slate-700 group-hover:border-blue-500/50 transition-colors">
-                            <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                         </div>
-                         <span className="text-white font-bold text-sm tracking-wide">Meal AI</span>
-                    </button>
-                </div>
-                
-                <button onClick={onClose} className="w-full mt-8 py-4 text-slate-500 font-bold uppercase tracking-widest text-xs hover:text-white transition-colors">Cancel</button>
-            </div>
-        </motion.div>
-    );
-};
 
 // --- APP CONTENT ---
 
@@ -144,9 +52,6 @@ function AppContent() {
   const [isSearching, setIsSearching] = useState(false);
   const [dashboardLocation, setDashboardLocation] = useState(null);
   const [selectedRestaurant, setSelectedRestaurant] = useState(null);
-
-  // New State for Scan Modal
-  const [isScanModalOpen, setIsScanModalOpen] = useState(false);
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -188,14 +93,10 @@ function AppContent() {
     navigate('/restaurant'); 
   };
 
-  const handleScanAction = (type) => {
-      console.log(`Scanning ${type}...`);
-      setIsScanModalOpen(false);
-      // Logic to trigger camera or route to scan page would go here
-      // e.g. navigate('/scan', { state: { mode: type } });
-      if (type === 'barcode') {
-          setIsSearching(true); // Open existing barcode scanner in Dashboard
-      }
+  // --- CENTER BUTTON ACTION ---
+  const handleCameraClick = () => {
+      navigate('/');
+      setIsSearching(true);
   };
 
   const getHeaderTitle = () => {
@@ -210,7 +111,6 @@ function AppContent() {
     return 'Safespoon';
   };
 
-  // --- SPLASH SCREEN RENDER ---
   if (!minLoadComplete || authLoading || (user && profileLoading)) {
     const letters = "Safespoon".split("");
     return (
@@ -234,7 +134,6 @@ function AppContent() {
     );
   }
 
-  // --- MAIN APP ROUTING ---
   if (!user) {
     return isGuest ? <GuestDashboard onLogin={() => setIsGuest(false)} /> : <Login onLogin={handleLoginAction} />;
   }
@@ -243,23 +142,16 @@ function AppContent() {
       return <Onboarding onComplete={() => navigate('/')} />;
   }
 
-  const shouldHideHeader = isSearching || location.pathname === '/restaurant' || location.pathname === '/' || location.pathname === '/meal-hub';
+  const shouldHideHeader = isSearching || 
+                           location.pathname === '/restaurant' || 
+                           location.pathname === '/' || 
+                           location.pathname === '/meal-hub' || 
+                           location.pathname === '/blog' || 
+                           location.pathname === '/account';
 
   return (
     <div className={`min-h-screen bg-white ${isSearching ? 'overflow-hidden' : ''}`}>
        
-       <AnimatePresence>
-            {isScanModalOpen && (
-                <ScanModal 
-                    isOpen={isScanModalOpen} 
-                    onClose={() => setIsScanModalOpen(false)} 
-                    isPremium={userProfile?.isPremium || false} 
-                    onScanBarcode={() => handleScanAction('barcode')}
-                    onScanMeal={() => handleScanAction('meal')}
-                />
-            )}
-       </AnimatePresence>
-
        {/* Sticky Header */}
        <div className={`${shouldHideHeader ? "hidden" : ""} sticky top-0 z-50 bg-white border-b border-slate-50 transition-all`}>
             <div className="hidden md:block">
@@ -302,7 +194,17 @@ function AppContent() {
               <Route path="/blog" element={<Blog />} />
               <Route path="/account" element={<Settings />} />
               
-              <Route path="/restaurant" element={<RestaurantMenu restaurant={selectedRestaurant} onBack={() => navigate('/meal-hub')} userProfile={userProfile} />} />
+              <Route 
+                path="/restaurant" 
+                element={
+                    <RestaurantMenu 
+                        restaurant={selectedRestaurant} 
+                        onBack={() => navigate('/meal-hub')} 
+                        userProfile={userProfile} 
+                        onItemClick={(item) => setSelectedRestaurant(item)} 
+                    />
+                } 
+              />
               <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
        </main>
@@ -317,28 +219,26 @@ function AppContent() {
                       <svg className={`w-6 h-6 mb-1 ${location.pathname === '/' ? 'text-black stroke-2' : 'text-slate-300 stroke-[1.5]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                       </svg>
-                      <span className={`text-[10px] font-bold ${location.pathname === '/' ? 'text-black' : 'text-slate-300'}`}>Home</span>
+                      <span className={`text-[10px] font-bold ${location.pathname === '/' ? 'text-black' : 'text-slate-300'}`}>Dashboard</span>
                   </button>
 
-                  {/* 2. Meal Hub */}
+                  {/* 2. Meal Hub (UPDATED COLOR LOGIC) */}
                   <button onClick={() => navigate('/meal-hub')} className="flex flex-col items-center justify-center w-1/5 h-full pb-1">
-                      <svg className={`w-6 h-6 mb-1 ${location.pathname === '/meal-hub' ? 'text-black stroke-2' : 'text-slate-300 stroke-[1.5]'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                      </svg>
+                      <ColoredIcon 
+                        src={foodTrayIcon} 
+                        colorClass={location.pathname === '/meal-hub' ? 'text-black' : 'text-slate-300'} 
+                        sizeClass="w-6 h-6 mb-1" 
+                      />
                       <span className={`text-[10px] font-bold ${location.pathname === '/meal-hub' ? 'text-black' : 'text-slate-300'}`}>Meals</span>
                   </button>
 
-                  {/* 3. CENTER FAB - SCAN ICON */}
+                  {/* 3. CENTER FAB - SCANNER */}
                   <div className="w-1/5 relative h-full flex justify-center items-end pointer-events-none">
                       <button 
-                          onClick={() => setIsScanModalOpen(true)} 
+                          onClick={handleCameraClick} 
                           className="pointer-events-auto absolute -top-8 w-16 h-16 bg-black rounded-full shadow-xl flex items-center justify-center text-white transform active:scale-95 transition-transform z-50 overflow-hidden"
                       >
-                          {/* Camera / Scan Icon */}
-                          <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
+                          <ColoredIcon src={scannerIcon} colorClass="bg-white" sizeClass="w-7 h-7" />
                       </button>
                   </div>
 
@@ -364,5 +264,12 @@ function AppContent() {
   );
 }
 
-function App() { return <Router><AppContent /></Router>; }
+// WRAP APP WITH HELPER PROVIDER
+function App() { 
+  return (
+    <HelmetProvider>
+      <Router><AppContent /></Router>
+    </HelmetProvider>
+  ); 
+}
 export default App;

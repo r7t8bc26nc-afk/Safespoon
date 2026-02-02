@@ -3,8 +3,8 @@ import ReactDOM from 'react-dom';
 import { db } from '../firebase';
 import { collection, query, limit, where, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { motion, AnimatePresence } from 'framer-motion';
-// --- SPECIALIZED SCANNER ENGINE ---
-import { Html5Qrcode, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
+import { PlateScanner } from './PlateScanner'; 
 
 // --- ICON IMPORTS ---
 import fireIcon from '../icons/fire.svg';
@@ -16,7 +16,9 @@ import cheeseIcon from '../icons/cheese.svg';
 import steakIcon from '../icons/steak.svg'; 
 import eggIcon from '../icons/eggfried.svg';
 import cloudIcon from '../icons/cloud-shield.svg';
-import activityIcon from '../icons/cycling.svg';
+import heartIcon from '../icons/heart-check.svg';
+import historyIcon from '../icons/rotate.svg'; 
+import cameraIcon from '../icons/camera.svg'; // Ensure this icon exists
 
 // --- ICONS MAPPING ---
 const ICONS = {
@@ -30,64 +32,26 @@ const ICONS = {
     dinner: steakIcon,
     snacks: candyIcon,
     sync: cloudIcon,
-    exercise: activityIcon
+    vitals: heartIcon,
+    history: historyIcon
 };
 
 // --- CONFIGURATION ---
-const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
-const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7'; 
+// SECURE KEYS (Prevents Git Errors)
+const LOGO_DEV_PUBLIC_KEY = import.meta.env.VITE_LOGO_DEV_PUBLIC_KEY;
+const USDA_API_KEY = import.meta.env.VITE_USDA_API_KEY;
 
-// --- PORTION VISUALIZATION LOGIC ---
+// --- HELPERS ---
 const getVisualReference = (grams, name = "") => {
     if (!grams) return null;
     const foodName = name.toLowerCase();
-
-    if (foodName.includes("meat") || foodName.includes("steak") || foodName.includes("chicken") || (grams >= 80 && grams <= 120)) {
-        return "Size of a deck of cards";
-    }
-    if (foodName.includes("cheese") || (grams >= 25 && grams <= 35)) {
-        return "Size of a pair of dice";
-    }
-    if (foodName.includes("pasta") || foodName.includes("rice") || (grams >= 180 && grams <= 220)) {
-        return "Size of a tight fist";
-    }
-    if (foodName.includes("oil") || foodName.includes("butter") || foodName.includes("peanut") || grams <= 15) {
-        return "Size of your thumb tip";
-    }
-    if (grams >= 40 && grams <= 65) {
-        return "Size of a tennis ball";
-    }
-    if (grams >= 140 && grams <= 170) {
-        return "Size of a baseball";
-    }
+    if (foodName.includes("meat") || foodName.includes("steak") || foodName.includes("chicken") || (grams >= 80 && grams <= 120)) return "Size of a deck of cards";
+    if (foodName.includes("cheese") || (grams >= 25 && grams <= 35)) return "Size of a pair of dice";
+    if (foodName.includes("pasta") || foodName.includes("rice") || (grams >= 180 && grams <= 220)) return "Size of a tight fist";
+    if (foodName.includes("oil") || foodName.includes("butter") || grams <= 15) return "Size of your thumb tip";
+    if (grams >= 40 && grams <= 65) return "Size of a tennis ball";
     return "Approx. one handful";
 };
-
-// --- EXERCISE DATABASE (RESTORED FULL LIST) ---
-const EXERCISE_DB = [
-    { id: 'ex_run_fast', name: 'Running (Fast - 8mph)', met: 11.8 },
-    { id: 'ex_run_mod', name: 'Running (Moderate - 6mph)', met: 9.8 },
-    { id: 'ex_jog', name: 'Jogging', met: 7.0 },
-    { id: 'ex_cycle_vig', name: 'Cycling (Vigorous)', met: 10.0 },
-    { id: 'ex_cycle_mod', name: 'Cycling (Moderate)', met: 7.5 },
-    { id: 'ex_hiit', name: 'HIIT Workout', met: 8.0 },
-    { id: 'ex_weights_vig', name: 'Weight Lifting (Vigorous)', met: 6.0 },
-    { id: 'ex_weights_mod', name: 'Weight Lifting (Moderate)', met: 3.5 },
-    { id: 'ex_swim_laps', name: 'Swimming (Laps)', met: 8.0 },
-    { id: 'ex_yoga', name: 'Yoga (Power)', met: 4.0 },
-    { id: 'ex_yoga_hatha', name: 'Yoga (Hatha)', met: 2.5 },
-    { id: 'ex_pilates', name: 'Pilates', met: 3.0 },
-    { id: 'ex_walk_fast', name: 'Walking (Brisk)', met: 4.3 },
-    { id: 'ex_walk_mod', name: 'Walking (Moderate)', met: 3.5 },
-    { id: 'ex_hike', name: 'Hiking', met: 6.0 },
-    { id: 'ex_basketball', name: 'Basketball', met: 8.0 },
-    { id: 'ex_soccer', name: 'Soccer', met: 10.0 },
-    { id: 'ex_tennis', name: 'Tennis', met: 7.3 },
-    { id: 'ex_dance', name: 'Dancing', met: 5.0 },
-    { id: 'ex_jump_rope', name: 'Jump Rope', met: 11.0 }
-];
-
-// --- HELPER COMPONENTS ---
 
 const getLogoUrl = (brand) => {
     if (!brand || brand === 'Generic' || brand === 'Foundation') return 'https://cdn-icons-png.flaticon.com/512/706/706164.png';
@@ -96,32 +60,14 @@ const getLogoUrl = (brand) => {
 };
 
 const ColoredIcon = ({ src, colorClass, sizeClass = "w-5 h-5" }) => (
-  <div 
-    className={`${sizeClass} ${colorClass}`}
-    style={{
-      WebkitMaskImage: `url("${src}")`,
-      WebkitMaskSize: 'contain',
-      WebkitMaskRepeat: 'no-repeat',
-      WebkitMaskPosition: 'center',
-      maskImage: `url("${src}")`,
-      maskSize: 'contain',
-      maskRepeat: 'no-repeat',
-      maskPosition: 'center',
-      backgroundColor: 'currentColor'
-    }}
-  />
+  <div className={`${sizeClass} ${colorClass}`} style={{ WebkitMaskImage: `url("${src}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${src}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center', backgroundColor: 'currentColor' }} />
 );
 
 const ProgressBar = ({ current, max, colorClass, bgClass, height = "h-1.5" }) => {
   const percent = Math.min(100, Math.max(0, (current / (max || 1)) * 100));
   return (
     <div className={`w-full ${height} ${bgClass} rounded-full overflow-hidden`}>
-      <motion.div 
-        initial={{ width: 0 }}
-        animate={{ width: `${percent}%` }}
-        transition={{ duration: 0.8, ease: "easeOut" }}
-        className={`h-full ${colorClass} rounded-full`} 
-      />
+      <motion.div initial={{ width: 0 }} animate={{ width: `${percent}%` }} transition={{ duration: 0.8, ease: "easeOut" }} className={`h-full ${colorClass} rounded-full`} />
     </div>
   );
 };
@@ -130,55 +76,33 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const getDayStatus = (dateObj) => {
         const dateString = dateObj.toDateString();
-        const logs = intakeHistory.filter(item => {
-            const itemDate = new Date(item.timestamp);
-            return itemDate.toDateString() === dateString;
-        });
+        const logs = intakeHistory.filter(item => new Date(item.timestamp).toDateString() === dateString);
         if (logs.length === 0) return 'empty';
         const totalCals = logs.reduce((sum, item) => sum + (item.calories?.amount || 0), 0);
-        return totalCals <= dailyGoal ? 'success' : 'failed';
+        return totalCals <= dailyGoal ? 'success' : 'warning';
     };
 
     return (
-        <div className="flex justify-between items-center mb-0 w-full px-1">
+        <div className="flex justify-between items-center w-full px-1 mt-6">
             {[6, 5, 4, 3, 2, 1, 0].map((offset, i) => {
                 const date = new Date();
                 date.setDate(date.getDate() - offset);
                 const dayLabel = days[date.getDay()];
                 const dayNumber = date.getDate();
                 const isSelected = date.toDateString() === selectedDate.toDateString();
-                const isToday = offset === 0;
                 const status = getDayStatus(date);
 
-                let bgClass = 'bg-transparent text-slate-400 border border-transparent'; 
-                let textClass = 'text-slate-400';
-
+                let bgClass = isSelected ? 'bg-slate-900 text-white shadow-lg scale-110' : 'bg-transparent text-slate-400 border border-transparent';
                 if (!isSelected) {
-                    if (status === 'success') {
-                        bgClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
-                        textClass = 'text-emerald-600 font-semibold';
-                    } else if (status === 'failed') {
-                        bgClass = 'bg-rose-50 text-rose-600 border border-rose-100';
-                        textClass = 'text-rose-600 font-semibold';
-                    } else if (isToday) {
-                        bgClass = 'bg-slate-100 text-slate-900 border-slate-200';
-                        textClass = 'text-slate-900 font-bold';
-                    }
-                } else {
-                    bgClass = 'bg-slate-900 text-white shadow-lg scale-110';
-                    textClass = 'text-slate-900 font-bold';
+                    if (status === 'success') bgClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
+                    else if (status === 'warning') bgClass = 'bg-amber-50 text-amber-600 border border-amber-100';
+                    else if (offset === 0) bgClass = 'bg-slate-100 text-slate-900 border-slate-200';
                 }
 
                 return (
-                    <button 
-                        key={i} 
-                        onClick={() => onSelectDate(date)}
-                        className="flex flex-col items-center gap-1.5 focus:outline-none group active:scale-95 transition-transform"
-                    >
-                        <span className={`text-[10px] font-medium ${textClass}`}>{dayLabel}</span>
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm transition-all ${bgClass}`}>
-                            {dayNumber}
-                        </div>
+                    <button key={i} onClick={() => onSelectDate(date)} className="flex flex-col items-center gap-1.5 focus:outline-none group active:scale-95 transition-transform">
+                        <span className={`text-[10px] font-medium ${isSelected ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>{dayLabel}</span>
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm transition-all ${bgClass}`}>{dayNumber}</div>
                     </button>
                 )
             })}
@@ -186,166 +110,147 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
     );
 };
 
-const StatCard = ({ icon, colorText, colorBg, label, value, unit, max, progressColor, progressBg, fullWidth = false }) => {
-    return (
-        <div className={`bg-white rounded-3xl p-5 shadow-sm border border-slate-50 flex flex-col justify-between ${fullWidth ? 'w-full h-44 mb-4' : 'h-36'}`}>
-            <div className="flex justify-between items-start">
-                <div className={`w-10 h-10 rounded-full ${colorBg} ${colorText} flex items-center justify-center`}>
-                    <ColoredIcon src={icon} colorClass="bg-current" sizeClass="w-5 h-5" />
-                </div>
-                {unit === 'kcal' && (
-                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{unit}</span>
-                )}
-            </div>
-            <div>
-                <div className="flex items-baseline mb-1">
-                    <span className="text-3xl font-black text-slate-900 tracking-tight">{Math.round(value)}</span>
-                    {max && (
-                        <span className="text-sm font-bold text-slate-300 ml-1.5">/ {max}</span>
-                    )}
-                </div>
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">{label}</p>
-            </div>
-            <div className="mt-auto pt-3">
-                 {max && (
-                     <div className="flex items-center gap-2">
-                        <ProgressBar current={value} max={max} colorClass={progressColor} bgClass={progressBg} height="h-2" />
-                     </div>
-                 )}
-            </div>
-        </div>
-    );
-};
-
 const NutrientRow = ({ label, value, max, unit }) => {
     const ratio = max > 0 ? Math.round((value / max) * 100) : 0;
-    
     return (
         <div className="flex items-center justify-between py-3.5 border-b border-slate-50 last:border-0">
-            <div className="w-5/12 pr-2">
-                <span className="text-sm font-bold text-slate-700 block">{label}</span>
-            </div>
+            <div className="w-5/12 pr-2"><span className="text-sm font-bold text-slate-700 block">{label}</span></div>
             <div className="flex items-center gap-3 w-7/12">
-                <div className="flex-1">
-                    <ProgressBar current={value} max={max} colorClass={ratio > 100 ? "bg-amber-500" : "bg-slate-900"} bgClass="bg-slate-100" height="h-1.5" />
-                </div>
-                <div className="text-right w-24">
-                    <span className="text-sm font-black text-slate-900">{Math.round(value)}</span>
-                    <span className="text-[10px] text-slate-400 ml-1 font-bold uppercase">/ {max}{unit}</span>
-                </div>
+                <div className="flex-1"><ProgressBar current={value} max={max} colorClass={ratio > 100 ? "bg-amber-500" : "bg-slate-900"} bgClass="bg-slate-100" height="h-1.5" /></div>
+                <div className="text-right w-24"><span className="text-sm font-black text-slate-900">{Math.round(value)}</span><span className="text-[10px] text-slate-400 ml-1 font-bold uppercase">/ {max}{unit}</span></div>
             </div>
         </div>
     );
 };
 
-// --- BARCODE SCANNER (html5-qrcode) ---
-const BarcodeScanner = ({ onResult, onClose }) => {
-    const scannerId = "safespoon-barcode-reader";
-    const [status, setStatus] = useState("Initializing camera...");
-    const [isFlash, setIsFlash] = useState(false);
-    
-    // We use a ref to track if the scanner is currently running to prevent double-starts
-    const scannerRef = useRef(null);
-
-    useEffect(() => {
-        // Delay initialization slightly to ensure DOM element exists
-        const timer = setTimeout(() => {
-            if (scannerRef.current) return; // Already initialized
-
-            const html5QrCode = new Html5Qrcode(scannerId);
-            scannerRef.current = html5QrCode;
-
-            const config = { 
-                fps: 20, 
-                qrbox: { width: 250, height: 150 }, 
-                aspectRatio: 1.0,
-                formatsToSupport: [ 
-                    Html5QrcodeSupportedFormats.UPC_A, 
-                    Html5QrcodeSupportedFormats.UPC_E, 
-                    Html5QrcodeSupportedFormats.EAN_13, 
-                    Html5QrcodeSupportedFormats.EAN_8
-                ]
-            };
-
-            html5QrCode.start(
-                { facingMode: "environment" }, 
-                config, 
-                (decodedText) => {
-                    if (navigator.vibrate) navigator.vibrate(200);
-                    // Stop scanning and return result
-                    html5QrCode.stop().then(() => {
-                        scannerRef.current = null;
-                        onResult(decodedText);
-                    }).catch(err => console.error("Failed to stop scanner", err));
-                },
-                (errorMessage) => { 
-                    // scanning... 
-                }
-            ).then(() => {
-                setStatus("Align barcode in frame");
-            }).catch(err => {
-                console.error("Camera start failed", err);
-                setStatus("Camera Access Denied or Unavailable");
-            });
-        }, 300);
-
-        // Cleanup function
-        return () => {
-            clearTimeout(timer);
-            if (scannerRef.current && scannerRef.current.isScanning) {
-                scannerRef.current.stop().then(() => {
-                    scannerRef.current = null;
-                }).catch(err => console.error("Failed to stop scanner on unmount", err));
-            }
-        };
-    }, [onResult]);
-
-    const handleManualCapture = () => {
-        setIsFlash(true);
-        setTimeout(() => setIsFlash(false), 150);
-        setStatus("Capturing...");
-        if (navigator.vibrate) navigator.vibrate(50);
-        // In a real app, you might grab a frame here, but for QR lib we just let it scan
+const HealthVitalsCard = ({ totals, goals }) => {
+    const remaining = Math.max(0, goals.calories - totals.calories);
+    const progress = Math.min(100, (totals.calories / goals.calories) * 100);
+    const getStatus = (val, max) => {
+        const ratio = val / max;
+        if (ratio > 1.1) return 'text-rose-500 bg-rose-50 border-rose-100'; 
+        if (ratio > 0.9) return 'text-amber-500 bg-amber-50 border-amber-100'; 
+        return 'text-emerald-600 bg-emerald-50 border-emerald-100'; 
     };
 
     return (
-        <div className="fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center font-['Switzer']">
-            {/* Camera Viewport */}
-            <div id={scannerId} className="w-full h-full object-cover" />
-            
-            <AnimatePresence>
-                {isFlash && (
-                    <motion.div 
-                        initial={{ opacity: 0.8 }} 
-                        animate={{ opacity: 0 }} 
-                        exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-white pointer-events-none z-50"
-                    />
-                )}
-            </AnimatePresence>
-
-            {/* Overlay UI */}
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <div className="w-72 h-44 border-2 border-white/40 rounded-xl relative shadow-2xl overflow-hidden">
-                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-emerald-400 rounded-tl-xl"></div>
-                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-emerald-400 rounded-tr-xl"></div>
-                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-emerald-400 rounded-bl-xl"></div>
-                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-emerald-400 rounded-br-xl"></div>
-                    <div className="absolute top-1/2 left-4 right-4 h-px bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+        <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 relative overflow-hidden">
+            <div className="flex justify-between items-start mb-6">
+                <div>
+                    <div className="flex items-center gap-2 mb-1">
+                        <ColoredIcon src={ICONS.vitals} colorClass="bg-slate-400" sizeClass="w-4 h-4" />
+                        <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Health Vitals</p>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                        <span className="text-4xl font-black tracking-tight text-slate-900">{remaining}</span>
+                        <span className="text-sm font-bold text-slate-400">kcal budget</span>
+                    </div>
+                </div>
+                <div className="relative w-16 h-16 flex items-center justify-center">
+                    <svg className="w-full h-full transform -rotate-90">
+                        <circle cx="32" cy="32" r="28" stroke="#f1f5f9" strokeWidth="4" fill="none" />
+                        <circle cx="32" cy="32" r="28" stroke={progress > 100 ? "#f43f5e" : "#10b981"} strokeWidth="4" fill="none" strokeDasharray="175.9" strokeDashoffset={175.9 - (175.9 * progress) / 100} strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute text-[10px] font-black text-slate-900">{Math.round(progress)}%</div>
                 </div>
             </div>
+            <div className="grid grid-cols-3 gap-4 mb-6">
+                <div><div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1"><span>PRO</span><span>{Math.round(totals.protein)}/{goals.protein}g</span></div><ProgressBar current={totals.protein} max={goals.protein} colorClass="bg-slate-900" bgClass="bg-slate-100" height="h-1.5" /></div>
+                <div><div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1"><span>CARB</span><span>{Math.round(totals.carbs)}/{goals.carbs}g</span></div><ProgressBar current={totals.carbs} max={goals.carbs} colorClass="bg-slate-900" bgClass="bg-slate-100" height="h-1.5" /></div>
+                <div><div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1"><span>FAT</span><span>{Math.round(totals.fat)}/{goals.fat}g</span></div><ProgressBar current={totals.fat} max={goals.fat} colorClass="bg-slate-900" bgClass="bg-slate-100" height="h-1.5" /></div>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+                <div className={`p-3 rounded-2xl border text-center ${getStatus(totals.sodium, goals.sodium)}`}><p className="text-[9px] font-black uppercase tracking-wider mb-0.5">Sodium</p><p className="text-sm font-bold">{Math.round(totals.sodium)}<span className="text-[9px] opacity-70">mg</span></p></div>
+                <div className={`p-3 rounded-2xl border text-center ${getStatus(totals.sugar, goals.sugar)}`}><p className="text-[9px] font-black uppercase tracking-wider mb-0.5">Sugar</p><p className="text-sm font-bold">{Math.round(totals.sugar)}<span className="text-[9px] opacity-70">g</span></p></div>
+                <div className={`p-3 rounded-2xl border text-center ${getStatus(totals.satFat, goals.satFat)}`}><p className="text-[9px] font-black uppercase tracking-wider mb-0.5">Sat. Fat</p><p className="text-sm font-bold">{Math.round(totals.satFat)}<span className="text-[9px] opacity-70">g</span></p></div>
+            </div>
+        </div>
+    );
+};
 
+const PreviousDayReview = ({ history, currentDate, goals }) => {
+    const prevDate = new Date(currentDate);
+    prevDate.setDate(prevDate.getDate() - 1);
+    const dateStr = prevDate.toDateString();
+    const prevMeals = history.filter(item => new Date(item.timestamp).toDateString() === dateStr && !item.type);
+
+    if (prevMeals.length === 0) return null; 
+
+    const calculateMealScore = (meal) => {
+        let score = 100;
+        const sugar = meal.sugar?.amount || 0;
+        const sodium = meal.sodium?.amount || 0;
+        const protein = meal.protein?.amount || 0;
+        const satFat = meal.satFat?.amount || 0;
+
+        if (sugar > 15) score -= 15;
+        if (sodium > 800) score -= 15;
+        if (satFat > 8) score -= 10;
+        if (protein > 20) score += 5;
+        
+        score = Math.min(100, Math.max(0, score));
+
+        if (score >= 90) return { grade: 'A', color: 'text-emerald-500 bg-emerald-50 border-emerald-100', label: 'Excellent' };
+        if (score >= 75) return { grade: 'B', color: 'text-blue-500 bg-blue-50 border-blue-100', label: 'Good' };
+        if (score >= 60) return { grade: 'C', color: 'text-amber-500 bg-amber-50 border-amber-100', label: 'Fair' };
+        return { grade: 'D', color: 'text-rose-500 bg-rose-50 border-rose-100', label: 'Limit' };
+    };
+
+    return (
+        <section className="mx-4 mb-8">
+            <div className="flex items-center gap-2 mb-3 px-1">
+                <ColoredIcon src={ICONS.history} colorClass="bg-slate-400" sizeClass="w-4 h-4" />
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Yesterday's Grade</h3>
+            </div>
+            
+            <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar">
+                {prevMeals.map((meal, idx) => {
+                    const rating = calculateMealScore(meal);
+                    return (
+                        <div key={idx} className={`shrink-0 w-64 p-4 rounded-2xl border ${rating.color} flex items-center justify-between shadow-sm`}>
+                            <div>
+                                <p className="text-[10px] font-black uppercase tracking-wider opacity-70">{meal.meal}</p>
+                                <p className="text-sm font-bold truncate max-w-[120px]">{meal.name}</p>
+                            </div>
+                            <div className="text-right">
+                                <span className="text-xl font-black">{rating.grade}</span>
+                                <p className="text-[9px] font-bold uppercase tracking-wide opacity-80">{rating.label}</p>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+};
+
+// --- BARCODE SCANNER ---
+const BarcodeScanner = ({ onResult, onClose }) => {
+    const scannerId = "safespoon-barcode-reader";
+    const [status, setStatus] = useState("Initializing camera...");
+    const scannerRef = useRef(null);
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            if (scannerRef.current) return;
+            const html5QrCode = new Html5Qrcode(scannerId);
+            scannerRef.current = html5QrCode;
+            html5QrCode.start({ facingMode: "environment" }, { fps: 20, qrbox: { width: 250, height: 150 }, aspectRatio: 1.0 }, 
+                (decodedText) => {
+                    if (navigator.vibrate) navigator.vibrate(200);
+                    html5QrCode.stop().then(() => { scannerRef.current = null; onResult(decodedText); });
+                }, () => {}
+            ).then(() => setStatus("Align barcode in frame")).catch(() => setStatus("Camera Access Denied"));
+        }, 300);
+        return () => { clearTimeout(timer); if (scannerRef.current?.isScanning) scannerRef.current.stop(); };
+    }, [onResult]);
+
+    return (
+        <div className="fixed inset-0 z-[10000] bg-black flex flex-col items-center justify-center font-['Switzer']">
+            <div id={scannerId} className="w-full h-full object-cover" />
             <div className="absolute bottom-0 left-0 right-0 p-10 flex flex-col items-center gap-6 pointer-events-auto">
                 <p className="text-white text-[10px] font-black uppercase tracking-widest bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">{status}</p>
-                
-                <div className="flex items-center gap-12">
-                    <button 
-                        onClick={onClose} 
-                        className="text-white font-bold text-xs uppercase tracking-widest px-4 py-2 bg-white/10 rounded-full backdrop-blur-md"
-                    >
-                        Cancel
-                    </button>
-                </div>
+                <button onClick={onClose} className="text-white font-bold text-xs uppercase tracking-widest px-4 py-2 bg-white/10 rounded-full backdrop-blur-md">Cancel</button>
             </div>
         </div>
     );
@@ -356,145 +261,56 @@ const ModalPortal = ({ children }) => {
     return ReactDOM.createPortal(children, document.body);
 };
 
-// --- SEARCH OVERLAY ---
-const SearchOverlay = ({ 
-    isSearching, setIsSearching, 
-    searchQuery, setSearchQuery, 
-    isApiLoading, suggestions, 
-    onSelect, recentSearches, 
-    activeMode, setActiveMode,
-    onSelectExercise
-}) => {
+const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuery, isApiLoading, suggestions, onSelect, onScanPlate }) => {
     const [isScanning, setIsScanning] = useState(false);
-
-    const handleScanResult = (barcode) => {
-        setSearchQuery(barcode);
-        setIsScanning(false);
-    };
+    const handleScanResult = (barcode) => { setSearchQuery(barcode); setIsScanning(false); };
 
     return (
       <ModalPortal>
         <AnimatePresence>
             {isSearching && (
-            <motion.div 
-                initial={{ opacity: 0 }} 
-                animate={{ opacity: 1 }} 
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[9999] bg-white flex flex-col font-['Switzer']"
-            >
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[9999] bg-white flex flex-col font-['Switzer']">
                 {isScanning ? (
                     <BarcodeScanner onResult={handleScanResult} onClose={() => setIsScanning(false)} />
                 ) : (
                     <>
                         <div className="pt-14 px-5 pb-4 bg-white shadow-sm z-20 border-b border-slate-50">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-xl font-black text-slate-900 tracking-tight">Add Entry</h2>
-                                <button 
-                                    onClick={() => { setIsSearching(false); setSearchQuery(''); }} 
-                                    className="w-9 h-9 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 font-bold"
-                                >
-                                    ✕
-                                </button>
+                                <h2 className="text-xl font-black text-slate-900 tracking-tight">Add Food</h2>
+                                <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="w-9 h-9 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 font-bold">✕</button>
                             </div>
-
-                            <div className="flex p-1 bg-slate-100 rounded-xl mb-4 relative">
-                                <motion.div 
-                                    layout
-                                    className="absolute top-1 bottom-1 bg-white rounded-[0.6rem] shadow-sm z-0"
-                                    initial={false}
-                                    animate={{ 
-                                        left: activeMode === 'food' ? '4px' : '50%', 
-                                        width: 'calc(50% - 4px)'
-                                    }}
-                                    transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                                />
-                                <button 
-                                    onClick={() => { setActiveMode('food'); setSearchQuery(''); }} 
-                                    className={`flex-1 relative z-10 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeMode === 'food' ? 'text-slate-900' : 'text-slate-400'}`}
-                                >
-                                    Food
-                                </button>
-                                <button 
-                                    onClick={() => { setActiveMode('exercise'); setSearchQuery(''); }} 
-                                    className={`flex-1 relative z-10 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeMode === 'exercise' ? 'text-slate-900' : 'text-slate-400'}`}
-                                >
-                                    Exercise
-                                </button>
-                            </div>
-
-                            <div className="relative group">
-                                <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400">
-                                    <ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-5 h-5" />
+                            
+                            {/* SEARCH BAR & SCAN BUTTONS */}
+                            <div className="flex gap-2 items-center mb-2">
+                                <div className="relative group flex-1">
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-5 h-5" /></div>
+                                    <input autoFocus type="search" placeholder="Search food or scan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 font-bold text-slate-900 placeholder:text-slate-400 outline-none" />
                                 </div>
-                                <input 
-                                    autoFocus 
-                                    type="search" 
-                                    placeholder={activeMode === 'food' ? "Search food or scan..." : "Search activity..."} 
-                                    value={searchQuery} 
-                                    onChange={(e) => setSearchQuery(e.target.value)} 
-                                    className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-12 font-bold text-slate-900 placeholder:text-slate-400 outline-none" 
-                                />
                                 
-                                {activeMode === 'food' && (
-                                    <button 
-                                        onClick={() => setIsScanning(true)}
-                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 p-1.5 active:scale-95 transition-transform"
-                                    >
-                                        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                                        </svg>
-                                    </button>
-                                )}
+                                {/* Barcode Scan Button */}
+                                <button onClick={() => setIsScanning(true)} className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-colors">
+                                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" /></svg>
+                                </button>
+                                
+                                {/* Plate Scan Button (NEW) */}
+                                <button onClick={onScanPlate} className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-white shadow-lg active:scale-95 transition-all">
+                                    <ColoredIcon src={cameraIcon} colorClass="bg-white" sizeClass="w-6 h-6" />
+                                </button>
                             </div>
                         </div>
-                        
+
                         <div className="flex-1 overflow-y-auto px-5 py-4 no-scrollbar bg-white">
-                            {activeMode === 'exercise' ? (
-                                <div className="space-y-2">
-                                    {EXERCISE_DB.filter(ex => ex.name.toLowerCase().includes(searchQuery.toLowerCase())).map((ex) => (
-                                        <button 
-                                            key={ex.id}
-                                            onClick={() => onSelectExercise(ex)}
-                                            className="w-full flex items-center justify-between p-4 bg-slate-50 rounded-2xl text-left active:bg-slate-100 transition-colors"
-                                        >
-                                            <div>
-                                                <h4 className="font-bold text-slate-900 text-sm">{ex.name}</h4>
-                                                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-widest mt-1">MET: {ex.met}</p>
-                                            </div>
-                                            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-300 shadow-sm">+</div>
-                                        </button>
-                                    ))}
-                                </div>
-                            ) : (
-                                <section className="space-y-2 pb-24">
-                                    {suggestions.map((res) => (
-                                        <article 
-                                            key={res.fdcId} 
-                                            onClick={() => onSelect(res)} 
-                                            className="flex items-center gap-4 p-4 active:bg-slate-50 rounded-2xl cursor-pointer border-b border-slate-50 last:border-0 transition-colors"
-                                        >
-                                            <div className="h-10 w-10 rounded-xl overflow-hidden shrink-0 bg-white p-1 border border-slate-100 shadow-sm">
-                                                <img src={res.logo} alt="" className="w-full h-full object-contain" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/706/706164.png'} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h4 className="font-bold text-slate-900 text-sm leading-tight">{res.name}</h4>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{res.brand}</p>
-                                            </div>
-                                            <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-200 shadow-sm font-light text-xl">+</div>
-                                        </article>
-                                    ))}
-                                    {isApiLoading && (
-                                        <div className="text-center py-12">
-                                            <div className="inline-block w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div>
-                                        </div>
-                                    )}
-                                    {!isApiLoading && searchQuery.length >= 3 && suggestions.length === 0 && (
-                                        <div className="text-center py-20 opacity-40">
-                                            <p className="text-xs font-bold uppercase tracking-widest text-slate-400">No Food Records Found</p>
-                                        </div>
-                                    )}
-                                </section>
-                            )}
+                            <section className="space-y-2 pb-24">
+                                {suggestions.map((res) => (
+                                    <article key={res.fdcId} onClick={() => onSelect(res)} className="flex items-center gap-4 p-4 active:bg-slate-50 rounded-2xl cursor-pointer border-b border-slate-50 last:border-0 transition-colors">
+                                        <div className="h-10 w-10 rounded-xl overflow-hidden shrink-0 bg-white p-1 border border-slate-100 shadow-sm"><img src={res.logo} alt="" className="w-full h-full object-contain" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/706/706164.png'} /></div>
+                                        <div className="flex-1"><h4 className="font-bold text-slate-900 text-sm leading-tight">{res.name}</h4><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{res.brand}</p></div>
+                                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-200 shadow-sm font-light text-xl">+</div>
+                                    </article>
+                                ))}
+                                {isApiLoading && <div className="text-center py-12"><div className="inline-block w-6 h-6 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></div></div>}
+                                {!isApiLoading && searchQuery.length >= 3 && suggestions.length === 0 && <div className="text-center py-20 opacity-40"><p className="text-xs font-bold uppercase tracking-widest text-slate-400">No Food Records Found</p></div>}
+                            </section>
                         </div>
                     </>
                 )}
@@ -505,7 +321,6 @@ const SearchOverlay = ({
     );
 };
 
-// --- MAIN DASHBOARD COMPONENT ---
 const Dashboard = ({ profile, setIsSearching, isSearching }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -517,9 +332,14 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
   const [selectedDate, setSelectedDate] = useState(new Date()); 
   const [showMicros, setShowMicros] = useState(false);
   const [offlineIntake, setOfflineIntake] = useState([]);
-  const [searchMode, setSearchMode] = useState('food'); 
-  const [selectedExercise, setSelectedExercise] = useState(null);
-  const [exerciseDuration, setExerciseDuration] = useState(30);
+  const [deferredPrompt, setDeferredPrompt] = useState(null); // PWA State
+  
+  // NEW: iOS Detection States
+  const [isIOS, setIsIOS] = useState(false);
+  const [showIOSHint, setShowIOSHint] = useState(false);
+  
+  // NEW: Plate Scanner State
+  const [isPlateScanning, setIsPlateScanning] = useState(false);
 
   useEffect(() => {
     try {
@@ -528,7 +348,32 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
     } catch (e) { console.error("Local load fail", e); }
   }, []);
 
-  // --- DYNAMIC DEMOGRAPHICS COMPOSITION ENGINE (16 NUTRIENTS) ---
+  // --- PWA INSTALL HANDLER & iOS CHECK ---
+  useEffect(() => {
+    // 1. Android/Desktop Handler
+    const handler = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+
+    // 2. iOS Check
+    const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandAlone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isDeviceIOS && !isStandAlone) {
+        setIsIOS(true);
+    }
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') setDeferredPrompt(null);
+  };
+
   const dailyStats = useMemo(() => {
     let bmr = 1600; 
     let weightKg = 70; 
@@ -543,99 +388,78 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         bmr = (gender === 'male') ? (10 * weightKg + 6.25 * heightCm - 5 * age + 5) : (10 * weightKg + 6.25 * heightCm - 5 * age - 161);
     }
     
-    const tdee = Math.round(bmr * (profile?.activityLevel || 1.375));
+    const tdee = Math.round(bmr * (profile?.activityLevel || 1.2)); 
     
-    // Demographic Specific Goals
     const goals = {
         calories: tdee,
         protein: Math.round(tdee * 0.20 / 4),
         carbs: Math.round(tdee * 0.50 / 4),
         fat: Math.round(tdee * 0.30 / 9),
-        fiber: 30,
-        sugar: 36,
-        satFat: Math.round(tdee * 0.10 / 9),
-        polyFat: Math.round(tdee * 0.08 / 9),
-        monoFat: Math.round(tdee * 0.12 / 9),
-        transFat: 2,
-        cholesterol: 300,
-        sodium: 2300,
-        potassium: 4700,
-        vitaminA: 900,
-        vitaminC: 90,
-        calcium: 1300,
-        iron: (gender === 'female' && age < 50) ? 18 : 8
+        fiber: 30, sugar: 36, satFat: Math.round(tdee * 0.10 / 9), polyFat: Math.round(tdee * 0.08 / 9), monoFat: Math.round(tdee * 0.12 / 9), transFat: 2, cholesterol: 300, sodium: 2300, potassium: 4700, vitaminA: 900, vitaminC: 90, calcium: 1300, iron: (gender === 'female' && age < 50) ? 18 : 8
     };
     
     const combinedIntake = [...(profile?.dailyIntake || []), ...offlineIntake];
     const dateStr = selectedDate.toDateString();
     
-    // Calculate Totals
     const totals = combinedIntake.reduce((acc, item) => {
-        if (new Date(item.timestamp).toDateString() !== dateStr || item.type === 'exercise') return acc;
+        if (new Date(item.timestamp).toDateString() !== dateStr) return acc;
         return { 
             calories: acc.calories + (item.calories?.amount || 0), 
             protein: acc.protein + (item.protein?.amount || 0), 
             carbs: acc.carbs + (item.carbs?.amount || 0), 
             fat: acc.fat + (item.fat?.amount || 0),
-            sugar: acc.sugar + (item.sugar?.amount || 0),
-            fiber: acc.fiber + (item.fiber?.amount || 0),
-            satFat: acc.satFat + (item.satFat?.amount || 0),
-            polyFat: acc.polyFat + (item.polyFat?.amount || 0),
-            monoFat: acc.monoFat + (item.monoFat?.amount || 0),
-            transFat: acc.transFat + (item.transFat?.amount || 0),
-            cholesterol: acc.cholesterol + (item.cholesterol?.amount || 0),
-            sodium: acc.sodium + (item.sodium?.amount || 0),
-            potassium: acc.potassium + (item.potassium?.amount || 0),
-            vitaminA: acc.vitaminA + (item.vitaminA?.amount || 0),
-            vitaminC: acc.vitaminC + (item.vitaminC?.amount || 0),
-            calcium: acc.calcium + (item.calcium?.amount || 0),
-            iron: acc.iron + (item.iron?.amount || 0)
+            sugar: acc.sugar + (item.sugar?.amount || 0), fiber: acc.fiber + (item.fiber?.amount || 0), satFat: acc.satFat + (item.satFat?.amount || 0), polyFat: acc.polyFat + (item.polyFat?.amount || 0), monoFat: acc.monoFat + (item.monoFat?.amount || 0), transFat: acc.transFat + (item.transFat?.amount || 0), cholesterol: acc.cholesterol + (item.cholesterol?.amount || 0), sodium: acc.sodium + (item.sodium?.amount || 0), potassium: acc.potassium + (item.potassium?.amount || 0), vitaminA: acc.vitaminA + (item.vitaminA?.amount || 0), vitaminC: acc.vitaminC + (item.vitaminC?.amount || 0), calcium: acc.calcium + (item.calcium?.amount || 0), iron: acc.iron + (item.iron?.amount || 0)
         };
-    }, { 
-        calories: 0, protein: 0, carbs: 0, fat: 0, 
-        sugar: 0, fiber: 0, satFat: 0, polyFat: 0, 
-        monoFat: 0, transFat: 0, cholesterol: 0, sodium: 0, 
-        potassium: 0, vitaminA: 0, vitaminC: 0, calcium: 0, iron: 0 
-    });
+    }, { calories: 0, protein: 0, carbs: 0, fat: 0, sugar: 0, fiber: 0, satFat: 0, polyFat: 0, monoFat: 0, transFat: 0, cholesterol: 0, sodium: 0, potassium: 0, vitaminA: 0, vitaminC: 0, calcium: 0, iron: 0 });
 
     const meals = { Breakfast: [], Lunch: [], Dinner: [], Snacks: [] };
     combinedIntake.forEach(item => {
-        if (new Date(item.timestamp).toDateString() === dateStr && !item.type) {
+        if (new Date(item.timestamp).toDateString() === dateStr) {
             meals[item.meal || 'Snacks'].push(item);
         }
     });
 
-    return { totals, goals, meals, weightKg };
+    return { totals, goals, meals };
   }, [profile, selectedDate, offlineIntake]);
 
-  // --- DYNAMIC SMART SUMMARY ---
-  const smartSummary = useMemo(() => {
-      const { totals, goals } = dailyStats;
-      const remaining = goals.calories - totals.calories;
+  // --- HANDLE PLATE ANALYSIS ---
+  const handlePlateAnalysis = (data) => {
+      // 1. Close scanner
+      setIsPlateScanning(false);
       
-      if (totals.calories === 0) return "☀️ Good morning! Scan your first meal to get started.";
-      if (remaining < 0) return "⚠️ You've exceeded your daily calorie budget. Focus on hydration.";
-      if (totals.sugar > goals.sugar) return "🍭 Sugar intake is elevated. Try opting for whole foods.";
-      if (totals.protein >= goals.protein) return "💪 Excellent! You've hit your protein target for the day.";
-      if (remaining < 300) return "🏁 You're close to your limit. A light snack fits perfectly.";
-      return `👍 You're on track. ${remaining} kcal remaining in your budget.`;
-  }, [dailyStats]);
-
-  // --- ACTIONS & API HANDLERS ---
+      // 2. Process LogMeal Data
+      if (data.segmentation_results && data.segmentation_results.length > 0) {
+           const dish = data.segmentation_results[0].recognition_results[0]; // Top prediction
+           
+           // 3. Create Product Object for Modal
+           const detectedFood = {
+               name: dish.name,
+               fullName: dish.name,
+               brand: "AI Detected",
+               servingLabel: "1 serving",
+               coreMetrics: { 
+                   // Placeholder metrics until confirmed via USDA or nutrition endpoint
+                   calories: { amount: Math.round(dish.calories || 250) },
+                   protein: { amount: 0 }, 
+                   fat: { amount: 0 },
+                   carbs: { amount: 0 }
+               }
+           };
+           // 4. Open Modal
+           setSelectedProduct(detectedFood);
+      } else {
+           alert("Could not detect food. Please try again.");
+      }
+  };
 
   const handleProductSelect = async (product) => {
       setSelectedProduct({ ...product, fullName: product.name, coreMetrics: { calories: { amount: 0 } } }); 
       try {
         const response = await fetch(`https://api.nal.usda.gov/fdc/v1/food/${product.fdcId}?api_key=${USDA_API_KEY}`);
         const data = await response.json();
-        
         const rawSize = data.servingSize || 100;
         const multiplier = rawSize / 100;
-
-        const getNut = (ids) => {
-            const n = data.foodNutrients?.find(nut => ids.includes(String(nut.nutrient.number)));
-            return { amount: Math.round((n?.amount || 0) * multiplier * 10) / 10 };
-        };
+        const getNut = (ids) => ({ amount: Math.round((data.foodNutrients?.find(nut => ids.includes(String(nut.nutrient.number)))?.amount || 0) * multiplier * 10) / 10 });
 
         const details = {
             servingLabel: `${rawSize}${data.servingSizeUnit || 'g'}`,
@@ -643,63 +467,23 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
             fullName: data.description,
             brand: data.brandOwner || product.brand,
             coreMetrics: { 
-                calories: getNut(['208', '1008']), 
-                protein: getNut(['203']), 
-                fat: getNut(['204']), 
-                carbs: getNut(['205']),
-                sugar: getNut(['269']), 
-                fiber: getNut(['291']), 
-                sodium: getNut(['307']),
-                satFat: getNut(['606']), 
-                polyFat: getNut(['646']), 
-                monoFat: getNut(['645']), 
-                transFat: getNut(['605']),
-                cholesterol: getNut(['601']), 
-                potassium: getNut(['306']), 
-                vitaminA: getNut(['318', '320']), 
-                vitaminC: getNut(['401']), 
-                calcium: getNut(['301']), 
-                iron: getNut(['303'])
+                calories: getNut(['208', '1008']), protein: getNut(['203']), fat: getNut(['204']), carbs: getNut(['205']),
+                sugar: getNut(['269']), fiber: getNut(['291']), sodium: getNut(['307']), satFat: getNut(['606']), polyFat: getNut(['646']), monoFat: getNut(['645']), transFat: getNut(['605']), cholesterol: getNut(['601']), potassium: getNut(['306']), vitaminA: getNut(['318', '320']), vitaminC: getNut(['401']), calcium: getNut(['301']), iron: getNut(['303'])
             }
         };
         setSelectedProduct(prev => ({ ...prev, ...details }));
     } catch (err) { console.error("USDA Fetch Error", err); }
   };
 
-  const saveExercise = async () => {
-      const met = selectedExercise.met;
-      const burned = Math.round(((met * 3.5 * dailyStats.weightKg) / 200) * exerciseDuration);
-      const entry = { type: 'exercise', name: selectedExercise.name, caloriesBurned: burned, timestamp: selectedDate.toISOString() };
-      
-      try {
-          await updateDoc(doc(db, "users", profile.uid), { dailyActivity: arrayUnion(entry) });
-          setTrackingSuccess(true);
-      } catch (e) { console.warn("Exercise Offline Save", e); }
-      
-      setTimeout(() => { setSelectedExercise(null); setIsSearching(false); setTrackingSuccess(false); }, 1500);
-  };
-
   const handleAddToIntake = async () => {
     const base = selectedProduct.coreMetrics;
-    const trackedMetrics = {}; // Initialize trackedMetrics
-    Object.keys(base).forEach(key => {
-        const val = base[key]?.amount;
-        trackedMetrics[key] = { amount: typeof val === 'number' ? Math.round(val * portionSize) : 0 };
-    });
+    const trackedMetrics = {}; 
+    Object.keys(base).forEach(key => { trackedMetrics[key] = { amount: Math.round((base[key]?.amount || 0) * portionSize) }; });
 
-    const newLogEntry = { 
-        ...trackedMetrics, 
-        name: selectedProduct.fullName || "Unknown Food",
-        brand: selectedProduct.brand || "Generic",
-        portion: Number(portionSize) || 1,
-        meal: selectedMeal, 
-        timestamp: selectedDate.toISOString() 
-    };
+    const newLogEntry = { ...trackedMetrics, name: selectedProduct.fullName, brand: selectedProduct.brand, portion: Number(portionSize) || 1, meal: selectedMeal, timestamp: selectedDate.toISOString() };
 
     try {
-      await updateDoc(doc(db, "users", profile.uid), {
-        dailyIntake: arrayUnion(newLogEntry)
-      });
+      await updateDoc(doc(db, "users", profile.uid), { dailyIntake: arrayUnion(newLogEntry) });
       setTrackingSuccess(true);
     } catch (e) { 
         const currentOffline = JSON.parse(localStorage.getItem('safespoon_offline_intake') || '[]');
@@ -708,126 +492,69 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         setOfflineIntake(updatedOffline);
         setTrackingSuccess(true);
     }
-
-    setTimeout(() => {
-        setSelectedProduct(null);
-        setTrackingSuccess(false);
-        setPortionSize(1.0);
-        setIsSearching(false);
-    }, 1500);
+    setTimeout(() => { setSelectedProduct(null); setTrackingSuccess(false); setPortionSize(1.0); setIsSearching(false); }, 1500);
   };
 
   useEffect(() => {
-    if (searchQuery.length < 3 || searchMode !== 'food') { 
-        if (searchMode === 'food') setSuggestions([]); 
-        return; 
-    }
+    if (searchQuery.length < 3) { setSuggestions([]); return; }
     const timeoutId = setTimeout(async () => {
         setIsApiLoading(true);
-        //setSearchError(null); // Removed undefined state
         try {
             const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(searchQuery)}&pageSize=8&dataType=Branded,Foundation`);
             const data = await res.json();
             if (data.foods) {
                 setSuggestions(data.foods.map(f => ({
-                    id: f.fdcId,
-                    fdcId: f.fdcId,
-                    name: f.description,
-                    brand: f.brandOwner || (f.dataType === 'Foundation' ? 'Basic' : 'Generic'),
-                    logo: getLogoUrl(f.brandOwner),
-                    isExternal: true
+                    id: f.fdcId, fdcId: f.fdcId, name: f.description, brand: f.brandOwner || (f.dataType === 'Foundation' ? 'Basic' : 'Generic'), logo: getLogoUrl(f.brandOwner), isExternal: true
                 })));
             }
-        } catch (e) { 
-            console.error("Connection to USDA failed."); 
-        } 
-        finally { setIsApiLoading(false); }
+        } catch (e) { } finally { setIsApiLoading(false); }
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [searchQuery, searchMode]);
-
+  }, [searchQuery]);
 
   return (
     <main className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
       <SearchOverlay 
-        isSearching={isSearching} 
-        setIsSearching={setIsSearching} 
-        searchQuery={searchQuery} 
-        setSearchQuery={setSearchQuery} 
-        isApiLoading={isApiLoading} 
-        suggestions={suggestions} 
-        onSelect={handleProductSelect} 
-        activeMode={searchMode} 
-        setActiveMode={setSearchMode} 
-        onSelectExercise={setSelectedExercise} 
+        isSearching={isSearching} setIsSearching={setIsSearching} 
+        searchQuery={searchQuery} setSearchQuery={setSearchQuery} 
+        isApiLoading={isApiLoading} suggestions={suggestions} 
+        onSelect={handleProductSelect}
+        onScanPlate={() => setIsPlateScanning(true)} // PASS TRIGGER
       />
       
-      {/* --- EXERCISE DURATION MODAL --- */}
-      <ModalPortal>
-        <AnimatePresence>
-            {selectedExercise && (
-                <motion.div 
-                    initial={{ y: "100%" }} 
-                    animate={{ y: 0 }} 
-                    exit={{ y: "100%" }} 
-                    className="fixed inset-0 z-[11000] flex flex-col justify-end pointer-events-none"
-                >
-                    <div className="absolute inset-0 bg-slate-900/20 backdrop-blur-sm pointer-events-auto" onClick={() => setSelectedExercise(null)} />
-                    <div className="bg-white w-full rounded-t-[2rem] p-6 pb-8 pointer-events-auto shadow-2xl relative z-10">
-                        <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto mb-8" />
-                        
-                        <div className="text-center mb-8">
-                            <h2 className="text-2xl font-black text-slate-900">{selectedExercise.name}</h2>
-                            <p className="text-sm font-bold text-slate-400 mt-1">Intensity Level: {selectedExercise.met > 7 ? 'High' : 'Moderate'}</p>
-                        </div>
-
-                        <div className="bg-slate-50 rounded-2xl p-6 mb-8">
-                            <div className="flex justify-between items-end mb-4">
-                                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Duration</span>
-                                <span className="text-3xl font-black text-slate-900">{exerciseDuration}<span className="text-base font-bold text-slate-400 ml-1">min</span></span>
-                            </div>
-                            <input 
-                                type="range" 
-                                min="5" max="180" step="5" 
-                                value={exerciseDuration} 
-                                onChange={(e) => setExerciseDuration(Number(e.target.value))}
-                                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-900"
-                            />
-                        </div>
-
-                        <button 
-                            onClick={saveExercise}
-                            className={`w-full py-4 rounded-xl font-black text-sm uppercase tracking-widest text-white shadow-xl transition-all active:scale-95 ${trackingSuccess ? 'bg-emerald-500 shadow-emerald-200' : 'bg-slate-900 shadow-slate-300'}`}
-                        >
-                            {trackingSuccess ? 'Saved!' : 'Log Activity'}
-                        </button>
-                    </div>
-                </motion.div>
-            )}
-        </AnimatePresence>
-      </ModalPortal>
-
+      {/* --- PLATE SCANNER OVERLAY --- */}
+      {isPlateScanning && (
+          <PlateScanner 
+             onResult={handlePlateAnalysis}
+             onClose={() => setIsPlateScanning(false)}
+          />
+      )}
+      
       {/* --- HEADER --- */}
-      <div className="pt-8 pb-1 px-4">
-          <div className="flex justify-between items-center mb-0">
-             <h1 className="text-2xl font-black tracking-tight text-slate-900">
-                {selectedDate.toDateString() === new Date().toDateString() ? "Overview" : `${selectedDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}`}
-             </h1>
-             {/* SCAN ICON */}
-             <motion.button 
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setIsSearching(true)}
-                className="h-10 w-10 rounded-full bg-slate-900 text-white flex items-center justify-center shadow-lg active:bg-slate-800 transition-all"
-             >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                </svg>
-             </motion.button>
+      <div className="pt-10 pb-4 px-4">
+          <div className="flex justify-between items-start mb-6">
+             <div className="flex flex-col">
+                <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">
+                    {profile?.firstName ? `Hi, ${profile.firstName}` : 'Hello there'} <br/>
+                    <span className="text-emerald-600">Ready to thrive?</span>
+                </h1>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
+                    {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+             </div>
+             
+             {/* PWA INSTALL BUTTON (UPDATED) */}
+             {(deferredPrompt || isIOS) && (
+                 <button 
+                    onClick={isIOS ? () => setShowIOSHint(true) : handleInstallClick}
+                    className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg active:scale-95 transition-all"
+                 >
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">Install App</span>
+                 </button>
+             )}
           </div>
           
-          {/* SMART SUMMARY - Dynamic */}
-          <motion.p key={smartSummary} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-sm font-medium text-slate-500 mb-8 mt-2">{smartSummary}</motion.p>
-
           <DateStrip 
             intakeHistory={[...(profile?.dailyIntake || []), ...offlineIntake]} 
             dailyGoal={dailyStats.goals.calories} 
@@ -835,24 +562,23 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
             onSelectDate={setSelectedDate}
           />
       </div>
-
-      {/* --- FULL WIDTH CALORIE CARD --- */}
-      {/* Intake / Goal */}
-      <div className="px-4 pt-4 mb-6">
-          <StatCard icon={ICONS.calories} colorText="text-slate-900" colorBg="bg-slate-100" label="Calories Consumed" value={dailyStats.totals.calories} unit="kcal" max={dailyStats.goals.calories} progressColor="bg-slate-900" progressBg="bg-slate-100" fullWidth={true} />
+      
+      {/* --- HEALTH VITALS HERO --- */}
+      <div className="px-4 mb-8">
+          <HealthVitalsCard totals={dailyStats.totals} goals={dailyStats.goals} />
       </div>
 
-      {/* --- MACRO GRID --- */}
-      <div className="px-4 grid grid-cols-3 gap-3 mb-8">
-            <StatCard icon={ICONS.protein} colorText="text-slate-900" colorBg="bg-slate-100" label="Protein" value={dailyStats.totals.protein} unit="g" max={dailyStats.goals.protein} progressColor="bg-slate-900" progressBg="bg-slate-100" />
-            <StatCard icon={ICONS.carbs} colorText="text-slate-900" colorBg="bg-slate-100" label="Carbs" value={dailyStats.totals.carbs} unit="g" max={dailyStats.goals.carbs} progressColor="bg-slate-900" progressBg="bg-slate-100" />
-            <StatCard icon={ICONS.fat} colorText="text-slate-900" colorBg="bg-slate-100" label="Fat" value={dailyStats.totals.fat} unit="g" max={dailyStats.goals.fat} progressColor="bg-slate-900" progressBg="bg-slate-100" />
-      </div>
+      {/* --- YESTERDAY'S REVIEW --- */}
+      <PreviousDayReview 
+        history={[...(profile?.dailyIntake || []), ...offlineIntake]} 
+        currentDate={selectedDate} 
+        goals={dailyStats.goals} 
+      />
 
       {/* --- NUTRIENT ANALYSIS --- */}
       <div className="mx-4 bg-white rounded-[1.5rem] border border-slate-50 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden mb-8">
             <button onClick={() => setShowMicros(!showMicros)} className="w-full flex items-center justify-between p-5 bg-slate-50/50 active:bg-slate-100 transition-colors">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Full Nutrient Analysis (16)</span>
+                <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">Nutrient Breakdown</span>
                 <motion.div animate={{ rotate: showMicros ? 180 : 0 }}><svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg></motion.div>
             </button>
             <AnimatePresence>
@@ -881,7 +607,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
             </AnimatePresence>
       </div>
 
-      {/* --- MEAL LIST (Transparent Icons) --- */}
+      {/* --- MEAL LIST --- */}
       <div className="px-4 space-y-4 pb-12">
           {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map((meal) => {
               const items = dailyStats.meals[meal]; const cals = items.reduce((s, i) => s + (i.calories?.amount || 0), 0);
@@ -889,7 +615,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
                   <section key={meal} className="bg-white rounded-[1.5rem] p-2 shadow-sm border border-slate-50">
                       <div className="flex justify-between items-center p-4 pb-2">
                            <div className="flex items-center gap-3">
-                                {/* Transparent Icon Container */}
                                 <div className="w-8 h-8 flex items-center justify-center">
                                     <ColoredIcon src={ICONS[meal.toLowerCase()]} colorClass="text-slate-900 bg-current" sizeClass="w-6 h-6" />
                                 </div>
@@ -963,6 +688,42 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
             )}
         </AnimatePresence>
       </ModalPortal>
+
+      {/* --- NEW: iOS INSTALL INSTRUCTIONS MODAL --- */}
+      <ModalPortal>
+        <AnimatePresence>
+            {showIOSHint && (
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[12000] bg-slate-900/40 backdrop-blur-sm flex items-end justify-center sm:items-center p-4">
+                    <div className="absolute inset-0" onClick={() => setShowIOSHint(false)} />
+                    <motion.div initial={{ y: 100 }} animate={{ y: 0 }} exit={{ y: 100 }} className="bg-white w-full max-w-sm rounded-[2rem] p-6 relative shadow-2xl pointer-events-auto">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-black text-slate-900">Install SafeSpoon</h3>
+                            <button onClick={() => setShowIOSHint(false)} className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center text-slate-500 font-bold">✕</button>
+                        </div>
+                        <p className="text-sm text-slate-500 font-medium mb-6 leading-relaxed">
+                            Install this app on your iPhone for the best experience. It takes just two taps:
+                        </p>
+                        <div className="space-y-4">
+                            <div className="flex items-center gap-4">
+                                <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-slate-900 font-bold">1</span>
+                                <p className="text-sm font-bold text-slate-900">Tap the <span className="inline-block mx-1"><svg className="w-4 h-4 inline" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg> Share</span> button below</p>
+                            </div>
+                            <div className="flex items-center gap-4">
+                                <span className="w-8 h-8 flex items-center justify-center bg-slate-100 rounded-lg text-slate-900 font-bold">2</span>
+                                <p className="text-sm font-bold text-slate-900">Select <span className="font-black">"Add to Home Screen"</span></p>
+                            </div>
+                        </div>
+                        <div className="mt-6 pt-6 border-t border-slate-50 text-center">
+                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Works best in Safari</p>
+                        </div>
+                        {/* Pointing Arrow for Context (Mobile Only) */}
+                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-white rotate-45 translate-y-1/2 sm:hidden"></div>
+                    </motion.div>
+                </motion.div>
+            )}
+        </AnimatePresence>
+      </ModalPortal>
+
     </main>
   );
 };

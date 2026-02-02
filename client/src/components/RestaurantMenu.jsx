@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 
-// --- CUSTOM ICONS (Imported as URLs) ---
+// --- CUSTOM ICONS ---
 import breadSrc from '../icons/bread-slice.svg';
 import glassSrc from '../icons/glass.svg';
 import beanSrc from '../icons/coffee-bean.svg';
@@ -13,43 +13,35 @@ const BackArrow = () => (
   </svg>
 );
 
-// --- HELPER: COLORED ICON (ROBUST SAFARI FIX) ---
-// Uses explicit Webkit properties and quoted URLs to ensure 
-// masks render correctly on iOS/Safari.
 const ColoredIcon = ({ src, colorClass, sizeClass = "w-8 h-8" }) => (
   <div 
     className={`${sizeClass} ${colorClass}`}
     style={{
-      // 1. Webkit prefix (Critical for Safari/iOS)
       WebkitMaskImage: `url("${src}")`,
       WebkitMaskSize: 'contain',
       WebkitMaskRepeat: 'no-repeat',
       WebkitMaskPosition: 'center',
-
-      // 2. Standard syntax
       maskImage: `url("${src}")`,
       maskSize: 'contain',
       maskRepeat: 'no-repeat',
       maskPosition: 'center',
+      backgroundColor: 'currentColor'
     }}
   />
 );
 
-const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
+const RestaurantMenu = ({ restaurant, onBack, userProfile, onItemClick }) => {
   const item = restaurant;
   
-  // --- ANALYSIS LOGIC ---
   const analysis = useMemo(() => {
     if (!item || !userProfile) return null;
 
     const issues = [];
-    let status = 'safe'; // 'safe', 'warning', 'unsafe'
+    let status = 'safe'; 
 
-    // 1. ALLERGENS (Medical - High Risk)
     const userAllergens = userProfile.allergens || {};
     const itemAllergens = item.safetyProfile?.allergens || {};
     
-    // Check for direct allergen matches
     const detectedAllergens = Object.keys(userAllergens).filter(
       key => userAllergens[key] && itemAllergens[key]
     );
@@ -66,12 +58,10 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
       });
     }
 
-    // 2. LIFESTYLE (Dietary Preferences - Medium Risk)
     const lifestyle = userProfile.lifestyle || {};
     const category = (item.taxonomy?.category || '').toLowerCase();
     const macros = item.macros || {};
 
-    // KETO CHECK
     if (lifestyle.isKeto) {
         const carbs = macros.carbs || 0;
         if (carbs > 10) {
@@ -85,7 +75,6 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
         }
     }
 
-    // VEGAN CHECK
     if (lifestyle.isVegan) {
         const animalCategories = ['meat', 'dairy', 'poultry', 'fish', 'seafood', 'cheese', 'yogurt', 'milk', 'egg'];
         if (animalCategories.some(cat => category.includes(cat))) {
@@ -99,7 +88,6 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
         }
     }
 
-    // GLUTEN FREE CHECK
     if (lifestyle.isGlutenFree && itemAllergens.wheat) {
          status = 'unsafe';
          issues.push({
@@ -116,7 +104,6 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
 
   if (!item) return null;
 
-  // Data Normalization
   const title = (item.name && item.name !== "Unknown") ? item.name : (item.taxonomy?.category || "Unknown Item");
   const brand = item.brand || "Generic Brand";
   const category = item.taxonomy?.category || "Grocery";
@@ -140,7 +127,19 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
         </div>
 
         {/* SCROLLABLE CONTENT */}
-        <div className="flex-1 overflow-y-auto p-6 pb-24">
+        <div className="flex-1 overflow-y-auto p-6 pb-8">
+            
+            {/* HERO IMAGE */}
+            {item.image && (
+                <div className="w-full h-64 rounded-[2rem] overflow-hidden mb-8 shadow-sm border border-slate-100 relative">
+                    <img 
+                        src={item.image} 
+                        alt={title} 
+                        className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none" />
+                </div>
+            )}
             
             {/* PRODUCT HEADER */}
             <div className="mb-8 text-center">
@@ -155,7 +154,7 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
                 </p>
             </div>
 
-            {/* SAFETY ANALYSIS REPORT */}
+            {/* SAFETY ANALYSIS */}
             {analysis && analysis.issues.length > 0 ? (
                 <div className="flex flex-col gap-3 mb-8">
                     {analysis.issues.map((issue, i) => (
@@ -186,16 +185,10 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
                     ))}
                 </div>
             ) : (
-                /* SAFE INDICATOR */
                 <div className="mb-8 p-5 bg-teal-50 border border-teal-100 rounded-2xl flex flex-col items-center justify-center text-center gap-2">
-                    {/* UPDATED: Uses ColoredIcon helper with bg-teal-600 */}
-                    <ColoredIcon 
-                        src={safeSrc} 
-                        colorClass="bg-teal-800" 
-                        sizeClass="w-8 h-8" 
-                    />
+                    <ColoredIcon src={safeSrc} colorClass="bg-teal-700" sizeClass="w-8 h-8" />
                     <div>
-                        <h3 className="font-bold text-teal-800">Safe to Consume</h3>
+                        <h3 className="font-bold text-teal-700">Safe to Consume</h3>
                         <p className="text-xs text-teal-600 mt-1">
                             This item matches your profile and contains no flagged allergens.
                         </p>
@@ -203,79 +196,75 @@ const RestaurantMenu = ({ restaurant, onBack, userProfile }) => {
                 </div>
             )}
 
-            {/* SAFETY BADGES GRID */}
+            {/* SAFETY BADGES */}
             <div className="grid grid-cols-2 gap-4 mb-8">
-                <SafetyBadge 
-                    label="Wheat" 
-                    icon={breadSrc} 
-                    detected={allergens.wheat} 
-                    isUserAllergen={userProfile?.allergens?.wheat}
-                />
-                <SafetyBadge 
-                    label="Dairy" 
-                    icon={glassSrc} 
-                    detected={allergens.milk} 
-                    isUserAllergen={userProfile?.allergens?.dairy}
-                />
-                <SafetyBadge 
-                    label="Soy" 
-                    icon={beanSrc} 
-                    detected={allergens.soy} 
-                    isUserAllergen={userProfile?.allergens?.soy}
-                />
-                <SafetyBadge 
-                    label="Shellfish" 
-                    icon={fishSrc} 
-                    detected={allergens.shellfish} 
-                    isUserAllergen={userProfile?.allergens?.shellfish}
-                />
+                <SafetyBadge label="Wheat" icon={breadSrc} detected={allergens.wheat} isUserAllergen={userProfile?.allergens?.wheat} />
+                <SafetyBadge label="Dairy" icon={glassSrc} detected={allergens.milk} isUserAllergen={userProfile?.allergens?.dairy} />
+                <SafetyBadge label="Soy" icon={beanSrc} detected={allergens.soy} isUserAllergen={userProfile?.allergens?.soy} />
+                <SafetyBadge label="Shellfish" icon={fishSrc} detected={allergens.shellfish} isUserAllergen={userProfile?.allergens?.shellfish} />
             </div>
 
             {/* INGREDIENTS */}
-            <div>
+            <div className="mb-8">
                 <h3 className="text-[16px] font-semibold text-slate-700 capitalize tracking-tight mb-3">
                     Ingredients
                 </h3>
                 <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 text-slate-500 leading-relaxed tracking-tight font-medium text-lg">
-                    {ingredients.toLowerCase()}
+                    {ingredients}
                 </div>
             </div>
+
+            {/* NEW SECTION: RELATED ITEMS */}
+            {item.relatedItems && item.relatedItems.length > 0 && (
+                <div className="mb-2">
+                    <h3 className="text-[16px] font-semibold text-slate-700 capitalize tracking-tight mb-3">
+                        You Might Also Like
+                    </h3>
+                    <div className="flex overflow-x-auto gap-4 pb-4 no-scrollbar -mx-6 px-6">
+                        {item.relatedItems.map((related) => (
+                            <div 
+                                key={related.id} 
+                                onClick={() => onItemClick && onItemClick(related)} 
+                                className="shrink-0 w-36 group cursor-pointer active:scale-95 transition-transform"
+                            >
+                                <div className="w-full h-36 rounded-2xl overflow-hidden mb-2 border border-slate-100 shadow-sm bg-slate-50">
+                                    <img src={related.image} alt={related.name} className="w-full h-full object-cover" />
+                                </div>
+                                <h4 className="text-xs font-bold text-slate-900 leading-tight truncate">{related.name}</h4>
+                                <p className="text-[10px] font-bold text-slate-400 mt-0.5">{related.calories} kcal</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     </div>
   );
 };
 
-// --- SUB-COMPONENT FOR BADGES ---
 const SafetyBadge = ({ label, icon, detected, isUserAllergen }) => {
-    
-    // Define Styles
     let containerStyle = "bg-slate-50 border-transparent";
     let textClass = "text-slate-400";
-    let iconColor = "bg-slate-400"; // Default Gray Icon
+    let iconColor = "bg-slate-400";
 
     if (detected) {
         if (isUserAllergen) {
-             // DANGER: Detected & Allergic
              containerStyle = "bg-white border-red-200 shadow-sm ring-2 ring-red-100";
              textClass = "text-red-600";
              iconColor = "bg-red-500";
         } else {
-             // INFO: Detected but Neutral
              containerStyle = "bg-yellow-100 border-yellow-200";
              textClass = "text-yellow-500";
              iconColor = "bg-yellow-500";
         }
     } else {
-        // EMPTY: Not Detected
         containerStyle = "bg-slate-50 border-transparent opacity-50 grayscale";
     }
 
     return (
         <div className={`flex flex-col items-center justify-center p-4 rounded-2xl border transition-all ${containerStyle}`}>
             <div className="mb-2 relative">
-                {/* USE COLORED ICON HELPER */}
                 <ColoredIcon src={icon} colorClass={iconColor} sizeClass="w-8 h-8" />
-
                 {detected && (
                     <div className={`absolute -top-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${isUserAllergen ? 'bg-red-500' : 'bg-slate-400'}`}></div>
                 )}
