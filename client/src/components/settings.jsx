@@ -206,7 +206,7 @@ const Settings = () => {
   if (loading) return <div className="py-20 flex justify-center"><div className="w-8 h-8 border-4 border-slate-200 border-t-black rounded-full animate-spin"></div></div>;
 
   return (
-    <div className="w-full font-['Switzer'] pb-32 bg-gray-50 min-h-screen text-slate-900">
+    <div className="w-full font-['Switzer'] pb-4 bg-gray-50 min-h-screen text-slate-900">
       
       {/* HEADER */}
       <header className="px-6 pt-12 pb-6">

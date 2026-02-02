@@ -1,16 +1,22 @@
 {
-  "name": "SafeSpoon",
-  "short_name": "SafeSpoon",
-  "icons": [
-    {
-      "src": "/app-icon.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#10b981"
-}
+    "short_name": "SafeSpoon",
+    "name": "SafeSpoon",
+    "icons": [
+      {
+        "src": "/app-icon.png",
+        "type": "image/png",
+        "sizes": "512x512",
+        "purpose": "any"
+      },
+      {
+        "src": "/app-icon.png",
+        "type": "image/png",
+        "sizes": "512x512",
+        "purpose": "maskable" 
+      }
+    ],
+    "start_url": "/",
+    "display": "standalone",
+    "theme_color": "#10b981",
+    "background_color": "#ffffff"
+  }

@@ -138,28 +138,14 @@ const BarcodeScannerPage = ({ userProfile }) => {
                 <div className="flex-1 relative bg-black overflow-hidden">
                     <div id="reader" className="w-full h-full object-cover scale-110" /> {/* Scaled to remove edges */}
                     
-                    {/* Dark Overlay with "Hollow" Box */}
-                    <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
-                        <div 
-                            className="relative border-2 border-emerald-500 rounded-lg"
-                            style={{ 
-                                width: '80%', 
-                                maxWidth: '350px', 
-                                height: '150px',
-                                boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.7)' // This creates the dark overlay everywhere EXCEPT the box
-                            }}
-                        >
-                            {/* Scanning Laser Animation */}
-                            <div className="absolute top-0 left-0 w-full h-0.5 bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-[scan_2s_infinite]" />
-                            <style>{`@keyframes scan { 0% { top: 0; opacity: 0; } 10% { opacity: 1; } 90% { opacity: 1; } 100% { top: 100%; opacity: 0; } }`}</style>
-                            
+                   
                             {/* Text Hint */}
                             <div className="absolute -bottom-12 left-0 right-0 text-center">
                                 <span className="text-white/80 text-sm font-bold tracking-widest uppercase bg-black/40 px-3 py-1 rounded-full">{scanStatus}</span>
                             </div>
                         </div>
-                    </div>
-                </div>
+                   
+                
             )}
 
             {/* --- LOADING --- */}

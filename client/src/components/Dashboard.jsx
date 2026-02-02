@@ -14,12 +14,12 @@ import breadIcon from '../icons/bread-slice.svg';
 import candyIcon from '../icons/candy.svg'; 
 import cheeseIcon from '../icons/cheese.svg'; 
 import steakIcon from '../icons/steak.svg'; 
-import eggIcon from '../icons/eggfried.svg';
+import eggIcon from '../icons/mug-hot.svg';
 import cloudIcon from '../icons/cloud-shield.svg';
 import heartIcon from '../icons/heart-check.svg';
 import historyIcon from '../icons/rotate.svg'; 
 import cameraIcon from '../icons/camera.svg'; 
-import scannerIcon from '../icons/scanner.svg'; // Added Import
+import scannerIcon from '../icons/scanner.svg'; 
 
 // --- ICONS MAPPING ---
 const ICONS = {
@@ -37,7 +37,7 @@ const ICONS = {
     history: historyIcon
 };
 
-// --- CONFIGURATION (KEYS PRESERVED) ---
+// --- CONFIGURATION ---
 const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
 const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7';
 
@@ -77,7 +77,7 @@ const ModalPortal = ({ children }) => {
     return ReactDOM.createPortal(children, document.body);
 };
 
-// --- NEW ENHANCED GOALS MODAL ---
+// --- GOALS MODAL ---
 const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
     const [step, setStep] = useState(1);
     const [selectedGoal, setSelectedGoal] = useState('maintain');
@@ -95,8 +95,6 @@ const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
       <ModalPortal>
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[12000] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 font-['Switzer']">
             <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-white w-full max-w-2xl rounded-[2.5rem] p-8 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
-                
-                {/* Progress Header */}
                 <div className="flex items-center justify-between mb-8">
                      <div>
                         <h2 className="text-3xl font-black text-slate-900 leading-tight">Calibrate Nutrition</h2>
@@ -140,7 +138,6 @@ const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
                                 <p className="text-slate-400 font-bold text-xs uppercase tracking-widest mb-2">Projected Daily Target</p>
                                 <div className="text-6xl font-black tracking-tighter mb-2">{projectedCalories}</div>
                                 <p className="text-slate-400 font-medium text-sm">kcal / day</p>
-                                
                                 <div className="grid grid-cols-3 gap-4 mt-8 pt-8 border-t border-white/10">
                                     <div><span className="block text-2xl font-bold">{Math.round(projectedCalories * 0.20 / 4)}g</span><span className="text-[10px] font-bold text-slate-500 uppercase">Protein</span></div>
                                     <div><span className="block text-2xl font-bold">{Math.round(projectedCalories * 0.50 / 4)}g</span><span className="text-[10px] font-bold text-slate-500 uppercase">Carbs</span></div>
@@ -154,31 +151,14 @@ const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
                     )}
                 </AnimatePresence>
 
-                {/* Footer Actions */}
                 <div className="flex gap-3 mt-6 pt-6 border-t border-slate-50">
-                    <button 
-                        onClick={onClose}
-                        className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors"
-                    >
-                        Skip
-                    </button>
+                    <button onClick={onClose} className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-widest hover:text-slate-600 transition-colors">Skip</button>
                     {step === 1 ? (
-                        <button 
-                            onClick={() => setStep(2)}
-                            className="flex-1 h-14 bg-slate-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2"
-                        >
-                            Review Plan <span className="text-lg">→</span>
-                        </button>
+                        <button onClick={() => setStep(2)} className="flex-1 h-14 bg-slate-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2">Review Plan <span className="text-lg">→</span></button>
                     ) : (
-                        <button 
-                            onClick={() => onSave(selectedGoal)}
-                            className="flex-1 h-14 bg-emerald-500 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2"
-                        >
-                            Confirm & Save <span className="text-lg">✓</span>
-                        </button>
+                        <button onClick={() => onSave(selectedGoal)} className="flex-1 h-14 bg-emerald-500 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-emerald-200 active:scale-95 transition-all flex items-center justify-center gap-2">Confirm & Save <span className="text-lg">✓</span></button>
                     )}
                 </div>
-
             </motion.div>
         </motion.div>
       </ModalPortal>
@@ -205,14 +185,12 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
                 const dayNumber = date.getDate();
                 const isSelected = date.toDateString() === selectedDate.toDateString();
                 const status = getDayStatus(date);
-
                 let bgClass = isSelected ? 'bg-slate-900 text-white shadow-lg scale-110' : 'bg-transparent text-slate-400 border border-transparent';
                 if (!isSelected) {
                     if (status === 'success') bgClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
                     else if (status === 'warning') bgClass = 'bg-amber-50 text-amber-600 border border-amber-100';
                     else if (offset === 0) bgClass = 'bg-slate-100 text-slate-900 border-slate-200';
                 }
-
                 return (
                     <button key={i} onClick={() => onSelectDate(date)} className="flex flex-col items-center gap-1.5 focus:outline-none group active:scale-95 transition-transform">
                         <span className={`text-[10px] font-medium ${isSelected ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>{dayLabel}</span>
@@ -257,7 +235,7 @@ const HealthVitalsCard = ({ totals, goals }) => {
                     </div>
                     <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-black tracking-tight text-slate-900">{remaining}</span>
-                        <span className="text-sm font-bold text-slate-400">kcal budget</span>
+                        <span className="text-sm font-semibold text-slate-400">kcal budget</span>
                     </div>
                 </div>
                 <div className="relative w-16 h-16 flex items-center justify-center">
@@ -384,17 +362,15 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
                     <>
                         <div className="pt-14 px-5 pb-4 bg-white shadow-sm z-20 border-b border-slate-50">
                             <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Add Food</h2>
+                                <h2 className="text-xl font-black text-slate-900 tracking-tight">Add Food</h2>
                                 <button onClick={() => { setIsSearching(false); setSearchQuery(''); }} className="w-9 h-9 flex items-center justify-center bg-slate-100 rounded-full text-slate-500 font-bold">✕</button>
                             </div>
                             
-                            {/* SEARCH BAR & SCAN BUTTONS */}
                             <div className="flex gap-2 items-center mb-2">
                                 <div className="relative group flex-1">
                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-5 h-5" /></div>
-                                    <input autoFocus type="search" placeholder="Search food or scan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 font-medium text-slate-900 placeholder:text-slate-400 outline-none" />
+                                    <input autoFocus type="search" placeholder="Search food or scan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 font-bold text-slate-900 placeholder:text-slate-400 outline-none" />
                                 </div>
-                                
                                 <button onClick={() => setIsScanning(true)} className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-colors">
                                     <ColoredIcon src={scannerIcon} colorClass="bg-current" sizeClass="w-6 h-6" />
                                 </button>
@@ -424,7 +400,8 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
 };
 
 // --- MAIN DASHBOARD ---
-const Dashboard = ({ profile, setIsSearching, isSearching }) => {
+// UPDATED: Now accepts 'deferredPrompt' prop from App.jsx
+const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [isApiLoading, setIsApiLoading] = useState(false);
@@ -435,12 +412,9 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
   const [selectedDate, setSelectedDate] = useState(new Date()); 
   const [showMicros, setShowMicros] = useState(false);
   const [offlineIntake, setOfflineIntake] = useState([]);
-  const [deferredPrompt, setDeferredPrompt] = useState(null); 
   const [isIOS, setIsIOS] = useState(false);
   const [showIOSHint, setShowIOSHint] = useState(false);
   const [isPlateScanning, setIsPlateScanning] = useState(false);
-  
-  // NEW: Goals Modal State
   const [showGoalsModal, setShowGoalsModal] = useState(false);
 
   useEffect(() => {
@@ -450,60 +424,43 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
     } catch (e) { console.error("Local load fail", e); }
   }, []);
 
-  // --- GOALS MODAL TRIGGER (FIXED) ---
+  // --- IOS & PWA DETECTION ---
   useEffect(() => {
-    // Only show if user exists, has finished onboarding, and hasn't set goals yet
-    // Added specific dependency on hasSetGoals to prevent re-triggering
+    // Only check for iOS style, 'deferredPrompt' is handled via props now
+    const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    const isStandAlone = window.matchMedia('(display-mode: standalone)').matches;
+    if (isDeviceIOS && !isStandAlone) setIsIOS(true);
+  }, []);
+
+  useEffect(() => {
     if (profile?.onboardingComplete && profile?.hasSetGoals === false) {
         const timer = setTimeout(() => setShowGoalsModal(true), 1200);
         return () => clearTimeout(timer);
     }
   }, [profile?.hasSetGoals, profile?.onboardingComplete]);
 
-  // --- SAVE GOAL HANDLER ---
   const handleSaveGoal = async (goalType) => {
       setShowGoalsModal(false);
       if (!profile?.uid) return;
-      
       try {
-          // Update Firestore
-          await updateDoc(doc(db, "users", profile.uid), { 
-              goalType: goalType, 
-              hasSetGoals: true 
-          });
-          
-          // Optimistically update local state if needed (optional depending on parent)
-      } catch (e) {
-          console.error("Error saving goal", e);
-      }
+          await updateDoc(doc(db, "users", profile.uid), { goalType: goalType, hasSetGoals: true });
+      } catch (e) { console.error("Error saving goal", e); }
   };
 
-  // --- SKIP GOAL HANDLER ---
   const handleSkipGoal = async () => {
       setShowGoalsModal(false);
-      if (profile?.uid) {
-          await updateDoc(doc(db, "users", profile.uid), { hasSetGoals: true });
-      }
+      if (profile?.uid) { await updateDoc(doc(db, "users", profile.uid), { hasSetGoals: true }); }
   };
 
-  // --- PWA HANDLERS ---
-  useEffect(() => {
-    const handler = (e) => { e.preventDefault(); setDeferredPrompt(e); };
-    window.addEventListener('beforeinstallprompt', handler);
-    const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    const isStandAlone = window.matchMedia('(display-mode: standalone)').matches;
-    if (isDeviceIOS && !isStandAlone) setIsIOS(true);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
+  // --- INSTALL HANDLER ---
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') setDeferredPrompt(null);
+    // Note: The parent App.jsx handles the 'appinstalled' event to clear the prompt
+    console.log(`User response to install prompt: ${outcome}`);
   };
 
-  // --- STATS CALCULATION ---
   const dailyStats = useMemo(() => {
     let bmr = 1600; 
     let weightKg = 70; 
@@ -518,14 +475,10 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         bmr = (gender === 'male') ? (10 * weightKg + 6.25 * heightCm - 5 * age + 5) : (10 * weightKg + 6.25 * heightCm - 5 * age - 161);
     }
     
-    // TDEE Calculation based on Goal
-    // NOTE: This logic mirrors the modal's calculation
     let tdee = Math.round(bmr * (profile?.activityLevel || 1.2)); 
-    
-    // Apply Goal Modifier
     const goalType = profile?.goalType || 'maintain';
-    if (goalType === 'lose') tdee = Math.round(tdee * 0.85); // 15% Deficit
-    if (goalType === 'gain') tdee = Math.round(tdee * 1.10); // 10% Surplus
+    if (goalType === 'lose') tdee = Math.round(tdee * 0.85); 
+    if (goalType === 'gain') tdee = Math.round(tdee * 1.10); 
     
     const goals = {
         calories: tdee,
@@ -556,7 +509,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         }
     });
 
-    return { totals, goals, meals, tdee: Math.round(bmr * (profile?.activityLevel || 1.2)) }; // Pass raw TDEE for modal calculation
+    return { totals, goals, meals, tdee: Math.round(bmr * (profile?.activityLevel || 1.2)) }; 
   }, [profile, selectedDate, offlineIntake]);
 
   const handlePlateAnalysis = (data) => {
@@ -629,17 +582,11 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
   }, [searchQuery]);
 
   return (
-    <main className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
+    <main className="w-full pb-4 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
       
-      {/* --- NEW: ENHANCED GOALS MODAL --- */}
       <AnimatePresence>
         {showGoalsModal && (
-            <GoalsModal 
-                currentWeight={profile?.weight || 0} 
-                tdee={dailyStats.tdee}
-                onSave={handleSaveGoal} 
-                onClose={handleSkipGoal} 
-            />
+            <GoalsModal currentWeight={profile?.weight || 0} tdee={dailyStats.tdee} onSave={handleSaveGoal} onClose={handleSkipGoal} />
         )}
       </AnimatePresence>
 
@@ -653,6 +600,36 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
       
       {isPlateScanning && <PlateScanner onResult={handlePlateAnalysis} onClose={() => setIsPlateScanning(false)} />}
       
+      {/* --- PWA INSTALL BANNER (NEW) --- */}
+      <AnimatePresence>
+        {(deferredPrompt || isIOS) && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-slate-900 text-white overflow-hidden relative z-50 border-b border-white/10"
+          >
+            <div className="p-4 flex items-center justify-between gap-4">
+               <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/5">
+                    <ColoredIcon src={scannerIcon} colorClass="bg-emerald-400" sizeClass="w-5 h-5" />
+                 </div>
+                 <div>
+                    <p className="text-sm font-bold leading-tight text-white">Install SafeSpoon</p>
+                    <p className="text-[10px] text-slate-400 font-medium tracking-wide">Add to home screen for full features</p>
+                 </div>
+               </div>
+               <button
+                 onClick={isIOS ? () => setShowIOSHint(true) : handleInstallClick}
+                 className="bg-emerald-500 text-white px-4 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-900/20 active:scale-95 transition-all whitespace-nowrap"
+               >
+                 Install
+               </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* --- HEADER --- */}
       <div className="pt-10 pb-4 px-4">
           <div className="flex justify-between items-start mb-6">
@@ -665,16 +642,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
                     {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
              </div>
-             
-             {(deferredPrompt || isIOS) && (
-                 <button 
-                    onClick={isIOS ? () => setShowIOSHint(true) : handleInstallClick}
-                    className="bg-slate-900 text-white px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-lg active:scale-95 transition-all"
-                 >
-                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-                    <span className="text-[10px] font-bold uppercase tracking-widest">Install App</span>
-                 </button>
-             )}
+             {/* Note: Previous Install Button Removed (replaced by banner above) */}
           </div>
           
           <DateStrip 
@@ -695,7 +663,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
         goals={dailyStats.goals} 
       />
 
-      {/* --- NUTRIENT ANALYSIS --- */}
       <div className="mx-4 bg-white rounded-[1.5rem] border border-slate-50 shadow-[0_2px_12px_rgba(0,0,0,0.04)] overflow-hidden mb-8">
             <button onClick={() => setShowMicros(!showMicros)} className="w-full flex items-center justify-between p-5 bg-slate-50/50 active:bg-slate-100 transition-colors">
                 <span className="text-[10px] font-bold text-slate-600 uppercase tracking-tight">Nutrient Breakdown</span>
@@ -710,11 +677,9 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
                         <NutrientRow label="Monounsaturated" value={dailyStats.totals.monoFat} max={dailyStats.goals.monoFat} unit="g" />
                         <NutrientRow label="Trans Fat" value={dailyStats.totals.transFat} max={dailyStats.goals.transFat} unit="g" />
                         <NutrientRow label="Cholesterol" value={dailyStats.totals.cholesterol} max={dailyStats.goals.cholesterol} unit="mg" />
-                        
                         <div className="mt-6 border-b border-slate-50 pb-2 mb-3"><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Carbs & Fiber</p></div>
                         <NutrientRow label="Dietary Fiber" value={dailyStats.totals.fiber} max={dailyStats.goals.fiber} unit="g" />
                         <NutrientRow label="Total Sugar" value={dailyStats.totals.sugar} max={dailyStats.goals.sugar} unit="g" />
-                        
                         <div className="mt-6 border-b border-slate-50 pb-2 mb-3"><p className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Micronutrients</p></div>
                         <NutrientRow label="Sodium" value={dailyStats.totals.sodium} max={dailyStats.goals.sodium} unit="mg" />
                         <NutrientRow label="Potassium" value={dailyStats.totals.potassium} max={dailyStats.goals.potassium} unit="mg" />
@@ -727,7 +692,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching }) => {
             </AnimatePresence>
       </div>
 
-      <div className="px-4 space-y-4 pb-12">
+      <div className="px-4 space-y-4 pb-0">
           {['Breakfast', 'Lunch', 'Dinner', 'Snacks'].map((meal) => {
               const items = dailyStats.meals[meal]; const cals = items.reduce((s, i) => s + (i.calories?.amount || 0), 0);
               return (
