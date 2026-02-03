@@ -3,6 +3,7 @@ import { getAuth, signOut } from "firebase/auth";
 import { doc, setDoc, onSnapshot } from "firebase/firestore";
 import { db } from '../firebase';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom'; // Added this
 
 // --- ICONS ---
 import heartIcon from '../icons/stethoscope.svg';
@@ -11,7 +12,6 @@ import filterIcon from '../icons/virus-covid.svg';
 import userIcon from '../icons/user.svg';
 import scaleIcon from '../icons/dumbbell-filled.svg'; 
 import atrfibIcon from '../icons/wave-pulse.svg'; 
-import chevronRight from '../icons/sparkle.svg'; 
 import fireIcon from '../icons/fire.svg'; 
 import starIcon from '../icons/sparkle.svg'; 
 
@@ -24,7 +24,6 @@ import halalIcon from '../icons/mosque.svg';
 import kosherIcon from '../icons/steak.svg';
 import veganIcon from '../icons/leaf.svg';
 import veggieIcon from '../icons/carrot.svg';
-import afibIcon from '../icons/wave-pulse.svg'; 
 
 const GOAL_OPTIONS = [
     { id: 'lose', label: "Fat Loss", desc: "Caloric Deficit", icon: fireIcon },
@@ -75,7 +74,7 @@ const ColoredIcon = ({ src, colorClass, sizeClass = "w-6 h-6" }) => (
   />
 );
 
-// --- REUSABLE SELECTION MODAL (HIG STYLE) ---
+// --- SELECTION MODAL ---
 const SelectionSheet = ({ isOpen, onClose, title, options, value, onSelect }) => {
     return (
         <AnimatePresence>
@@ -112,7 +111,7 @@ const SelectionSheet = ({ isOpen, onClose, title, options, value, onSelect }) =>
     );
 };
 
-// --- NEW: SUBTLE SUBSCRIPTION ROW (REPLACES LARGE CARD) ---
+// --- SUBSCRIPTION ROW (Updated to allow navigation) ---
 const SubscriptionRow = ({ isPremium, onManage }) => (
     <button
         onClick={onManage}
@@ -126,13 +125,13 @@ const SubscriptionRow = ({ isPremium, onManage }) => (
                 <p className="font-bold text-slate-900 text-sm leading-tight">
                     {isPremium ? "Premium Plan" : "Starter Plan"}
                 </p>
-                <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-wide">
-                    {isPremium ? "Active • Auto-renews" : "Upgrade for AI Features"}
+                <p className="text-[10px] font-semibold text-slate-400 mt-0.5 tracking-tight">
+                    {isPremium ? "Active • Auto-renews" : "Upgrade for AI Features and meal planning"}
                 </p>
             </div>
         </div>
-        <div className="px-4 py-2 bg-slate-50 rounded-lg">
-            <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+        <div className="px-4 py-2 bg-emerald-50 rounded-lg">
+            <span className="text-[10px] font-bold text-emerald-600 tracking-tight">
                 {isPremium ? "Manage" : "Upgrade"}
             </span>
         </div>
@@ -145,7 +144,8 @@ const Settings = () => {
   const [loading, setLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [activeModal, setActiveModal] = useState(null); 
-
+  
+  const navigate = useNavigate(); // Hook for navigation
   const auth = getAuth();
   const user = auth.currentUser;
 
@@ -185,15 +185,11 @@ const Settings = () => {
     setIsSaving(false);
   };
 
+  // Navigates to Subscription Page
   const handleSubscription = () => {
-      if (profile?.isPremium) {
-          alert("Redirecting to Stripe Customer Portal...");
-      } else {
-          alert("Opening Upgrade Options...");
-      }
+      navigate('/subscription');
   };
 
-  // --- DATA GENERATORS ---
   const heightOptions = Array.from({length: 49}, (_, i) => { 
       const totalInches = 48 + i;
       const ft = Math.floor(totalInches / 12);
@@ -216,7 +212,7 @@ const Settings = () => {
 
       <div className="px-4 space-y-8">
         
-        {/* 1. IDENTITY CARD (MOVED TO TOP) */}
+        {/* 1. IDENTITY CARD */}
         <section className="bg-white rounded-[2rem] p-5 shadow-sm border border-slate-100 flex items-center gap-5">
             <div className="h-16 w-16 rounded-2xl bg-slate-100 flex items-center justify-center overflow-hidden shadow-inner">
                 {user?.photoURL ? (
@@ -233,11 +229,11 @@ const Settings = () => {
                   placeholder="First Name"
                   className="w-full bg-transparent border-none p-0 text-xl font-black text-slate-900 outline-none placeholder:text-slate-300 mb-0.5"
                 />
-                <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">{user?.email}</p>
+                <p className="text-slate-400 font-bold text-xs tracking-wide">{user?.email}</p>
             </div>
         </section>
 
-        {/* 2. SUBSCRIPTION ROW (NEW SUBTLE DESIGN) */}
+        {/* 2. SUBSCRIPTION ROW */}
         <SubscriptionRow 
             isPremium={profile?.isPremium || false} 
             onManage={handleSubscription} 
@@ -247,7 +243,7 @@ const Settings = () => {
         <section>
             <div className="flex items-center gap-3 mb-4 px-2">
                 <ColoredIcon src={fireIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight pt-2">Primary Goal</h3>
+                <h3 className="text-sm font-black text-slate-900 tracking-tight pt-2">Primary Goal</h3>
             </div>
             <div className="grid grid-cols-1 gap-3">
                 {GOAL_OPTIONS.map(goal => {
@@ -274,11 +270,11 @@ const Settings = () => {
             </div>
         </section>
 
-        {/* 4. PERSONAL DETAILS */}
+        {/* 4. MEASUREMENTS */}
         <section>
             <div className="flex items-center gap-3 mb-4 px-2">
                 <ColoredIcon src={scaleIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight pt-2">Measurements</h3>
+                <h3 className="text-sm font-black text-slate-900 tracking-tight pt-2">Measurements</h3>
             </div>
             <div className="bg-white rounded-[1.5rem] border border-slate-100 shadow-sm overflow-hidden">
                 <button onClick={() => setActiveModal('height')} className="w-full flex items-center justify-between p-5 border-b border-slate-50 active:bg-slate-50 transition-colors">
@@ -309,7 +305,7 @@ const Settings = () => {
         <section>
             <div className="flex items-center gap-3 mb-4 px-2">
                 <ColoredIcon src={heartIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
-                <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight pt-2">Medical Conditions</h3>
+                <h3 className="text-sm font-black text-slate-900 tracking-tight pt-2">Medical Conditions</h3>
             </div>
             <div className="grid grid-cols-1 gap-3">
                 {MEDICAL_CONDITIONS.map(cond => {
@@ -341,7 +337,7 @@ const Settings = () => {
             <section>
                 <div className="flex items-center gap-3 mb-4 px-2">
                     <ColoredIcon src={lifestyleIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight pt-2">Lifestyle</h3>
+                    <h3 className="text-sm font-black text-slate-900 tracking-tight pt-2">Lifestyle</h3>
                 </div>
                 <div className="flex flex-col gap-2">
                     {LIFESTYLE_DIETS.map(diet => {
@@ -366,7 +362,7 @@ const Settings = () => {
             <section>
                 <div className="flex items-center gap-3 mb-4 px-2">
                     <ColoredIcon src={filterIcon} colorClass="bg-slate-900" sizeClass="w-5 h-5" />
-                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-tight pt-2">Allergens</h3>
+                    <h3 className="text-sm font-black text-slate-900 tracking-tight pt-2">Allergens</h3>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                     {COMMON_ALLERGENS.map(ing => {

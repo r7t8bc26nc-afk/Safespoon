@@ -165,7 +165,9 @@ const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
     );
 };
 
-// --- SUB-COMPONENTS ---
+// --- MODIFIED SUB-COMPONENTS ---
+
+// 1. DATE STRIP (iOS Style Ellipse)
 const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => {
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const getDayStatus = (dateObj) => {
@@ -177,7 +179,7 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
     };
 
     return (
-        <div className="flex justify-between items-center w-full px-1 mt-6">
+        <div className="flex justify-between items-start w-full px-2 mt-6">
             {[6, 5, 4, 3, 2, 1, 0].map((offset, i) => {
                 const date = new Date();
                 date.setDate(date.getDate() - offset);
@@ -185,16 +187,31 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
                 const dayNumber = date.getDate();
                 const isSelected = date.toDateString() === selectedDate.toDateString();
                 const status = getDayStatus(date);
-                let bgClass = isSelected ? 'bg-slate-900 text-white shadow-lg scale-110' : 'bg-transparent text-slate-400 border border-transparent';
+                
+                // Visual Logic:
+                // - Past days get colored backgrounds (Success/Warning)
+                // - Current/Selected day gets NO background on the circle, but an ELLIPSE beneath.
+                let bgClass = 'bg-transparent text-slate-400';
+                
                 if (!isSelected) {
                     if (status === 'success') bgClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
                     else if (status === 'warning') bgClass = 'bg-amber-50 text-amber-600 border border-amber-100';
-                    else if (offset === 0) bgClass = 'bg-slate-100 text-slate-900 border-slate-200';
+                    else if (offset === 0) bgClass = 'bg-slate-50 text-slate-900 border border-slate-100'; // Today (unselected)
+                } else {
+                    // Selected state: standard text, indicator below
+                    bgClass = 'bg-transparent text-slate-900 font-bold';
                 }
+
                 return (
-                    <button key={i} onClick={() => onSelectDate(date)} className="flex flex-col items-center gap-1.5 focus:outline-none group active:scale-95 transition-transform">
-                        <span className={`text-[10px] font-medium ${isSelected ? 'text-slate-900 font-bold' : 'text-slate-400'}`}>{dayLabel}</span>
-                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm transition-all ${bgClass}`}>{dayNumber}</div>
+                    <button key={i} onClick={() => onSelectDate(date)} className="flex flex-col items-center gap-1 focus:outline-none group active:scale-95 transition-transform w-10">
+                        <span className={`text-[10px] font-bold ${isSelected ? 'text-slate-900' : 'text-slate-400'}`}>{dayLabel}</span>
+                        
+                        <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm transition-all ${bgClass} ${isSelected ? '' : 'border'}`}>
+                            {dayNumber}
+                        </div>
+                        
+                        {/* THE ELLIPSE INDICATOR */}
+                        <div className={`h-1.5 w-1.5 rounded-full bg-emerald-500 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
                     </button>
                 )
             })}
@@ -260,33 +277,61 @@ const HealthVitalsCard = ({ totals, goals }) => {
     );
 };
 
+// 2. DAILY REVIEW (Daily Grading & Summary)
 const PreviousDayReview = ({ history, currentDate, goals }) => {
     const prevDate = new Date(currentDate);
     prevDate.setDate(prevDate.getDate() - 1);
     const dateStr = prevDate.toDateString();
-    const prevMeals = history.filter(item => new Date(item.timestamp).toDateString() === dateStr && !item.type);
+    
+    // Aggregate yesterday's totals
+    const yesterdaysLogs = history.filter(item => new Date(item.timestamp).toDateString() === dateStr && !item.type);
 
-    if (prevMeals.length === 0) return null; 
+    if (yesterdaysLogs.length === 0) return null; 
 
-    const calculateMealScore = (meal) => {
+    const dailyTotals = yesterdaysLogs.reduce((acc, meal) => ({
+        sugar: acc.sugar + (meal.sugar?.amount || 0),
+        sodium: acc.sodium + (meal.sodium?.amount || 0),
+        protein: acc.protein + (meal.protein?.amount || 0),
+        calories: acc.calories + (meal.calories?.amount || 0),
+        satFat: acc.satFat + (meal.satFat?.amount || 0),
+    }), { sugar: 0, sodium: 0, protein: 0, calories: 0, satFat: 0 });
+
+    const calculateDailyScore = () => {
         let score = 100;
-        const sugar = meal.sugar?.amount || 0;
-        const sodium = meal.sodium?.amount || 0;
-        const protein = meal.protein?.amount || 0;
-        const satFat = meal.satFat?.amount || 0;
+        const reasons = [];
 
-        if (sugar > 15) score -= 15;
-        if (sodium > 800) score -= 15;
-        if (satFat > 8) score -= 10;
-        if (protein > 20) score += 5;
+        // Deductions
+        if (dailyTotals.sugar > goals.sugar * 1.2) { score -= 15; reasons.push("High Sugar"); }
+        if (dailyTotals.sodium > goals.sodium * 1.2) { score -= 15; reasons.push("High Sodium"); }
+        if (dailyTotals.satFat > goals.satFat * 1.2) { score -= 10; reasons.push("High Sat. Fat"); }
         
+        // Calorie Adherence (Penalty for under-eating drastically or over-eating)
+        const calRatio = dailyTotals.calories / goals.calories;
+        if (calRatio > 1.15) { score -= 10; reasons.push("Calorie Surplus"); }
+        else if (calRatio < 0.6) { score -= 10; reasons.push("Low Intake"); }
+
+        // Bonuses
+        if (dailyTotals.protein >= goals.protein * 0.9) { score += 5; reasons.push("Great Protein"); }
+
         score = Math.min(100, Math.max(0, score));
 
-        if (score >= 90) return { grade: 'A', color: 'text-emerald-500 bg-emerald-50 border-emerald-100', label: 'Excellent' };
-        if (score >= 75) return { grade: 'B', color: 'text-blue-500 bg-blue-50 border-blue-100', label: 'Good' };
-        if (score >= 60) return { grade: 'C', color: 'text-amber-500 bg-amber-50 border-amber-100', label: 'Fair' };
-        return { grade: 'D', color: 'text-rose-500 bg-rose-50 border-rose-100', label: 'Limit' };
+        // Generate Human Summary
+        let summary = "A balanced day overall.";
+        if (reasons.includes("High Sodium") && reasons.includes("High Sugar")) summary = "Watch the processed foods; sodium and sugar were high.";
+        else if (reasons.includes("Great Protein") && score > 80) summary = "Solid performance! Protein goals hit and macros balanced.";
+        else if (reasons.includes("Low Intake")) summary = "You were significantly under your calorie budget yesterday.";
+        else if (reasons.includes("High Sugar")) summary = "Sugar intake spiked yesterday. Try substituting sweets with fruit.";
+        else if (reasons.includes("High Sodium")) summary = "Sodium was elevated. Keep an eye on salty snacks.";
+
+        return { 
+            score, 
+            summary,
+            grade: score >= 90 ? 'A' : score >= 75 ? 'B' : score >= 60 ? 'C' : 'D',
+            color: score >= 90 ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : score >= 75 ? 'text-blue-600 bg-blue-50 border-blue-100' : 'text-amber-600 bg-amber-50 border-amber-100'
+        };
     };
+
+    const rating = calculateDailyScore();
 
     return (
         <section className="mx-4 mb-8">
@@ -295,22 +340,15 @@ const PreviousDayReview = ({ history, currentDate, goals }) => {
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest">Yesterday's Grade</h3>
             </div>
             
-            <div className="flex overflow-x-auto gap-3 pb-2 no-scrollbar">
-                {prevMeals.map((meal, idx) => {
-                    const rating = calculateMealScore(meal);
-                    return (
-                        <div key={idx} className={`shrink-0 w-64 p-4 rounded-2xl border ${rating.color} flex items-center justify-between shadow-sm`}>
-                            <div>
-                                <p className="text-[10px] font-black uppercase tracking-wider opacity-70">{meal.meal}</p>
-                                <p className="text-sm font-bold truncate max-w-[120px]">{meal.name}</p>
-                            </div>
-                            <div className="text-right">
-                                <span className="text-xl font-black">{rating.grade}</span>
-                                <p className="text-[9px] font-bold uppercase tracking-wide opacity-80">{rating.label}</p>
-                            </div>
-                        </div>
-                    );
-                })}
+            <div className={`w-full p-5 rounded-[2rem] border ${rating.color} flex items-center justify-between shadow-sm relative overflow-hidden`}>
+                <div className="z-10 relative">
+                    <p className="text-2xl font-black mb-1">{rating.grade} <span className="text-sm font-bold opacity-70 align-middle ml-1">({rating.score})</span></p>
+                    <p className="text-xs font-bold opacity-90 leading-relaxed max-w-[240px]">{rating.summary}</p>
+                </div>
+                {/* Decorative Background Icon */}
+                <div className="absolute -right-4 -bottom-4 opacity-10 transform rotate-12">
+                    <ColoredIcon src={ICONS.vitals} colorClass="bg-current" sizeClass="w-32 h-32" />
+                </div>
             </div>
         </section>
     );
@@ -600,7 +638,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
       
       {isPlateScanning && <PlateScanner onResult={handlePlateAnalysis} onClose={() => setIsPlateScanning(false)} />}
       
-      {/* --- PWA INSTALL BANNER (NEW) --- */}
+      {/* --- PWA INSTALL BANNER --- */}
       <AnimatePresence>
         {(deferredPrompt || isIOS) && (
           <motion.div
@@ -634,15 +672,14 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
       <div className="pt-10 pb-4 px-4">
           <div className="flex justify-between items-start mb-6">
              <div className="flex flex-col">
-                <h1 className="text-2xl font-bold tracking-tightest text-slate-900 leading-tight">
+                <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">
                     {profile?.firstName ? `Hello, ${profile.firstName}` : 'Hello there'} <br/>
-                    <span className="text-emerald-600 font-black leading-tight tracking-tight text-3xl">Nutrition Breakdown</span>
+                    <span className="text-slate-900 font-black leading-tight tracking-tight text-3xl">Here's your Overview</span>
                 </h1>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
                     {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </p>
              </div>
-             {/* Note: Previous Install Button Removed (replaced by banner above) */}
           </div>
           
           <DateStrip 
@@ -657,6 +694,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
           <HealthVitalsCard totals={dailyStats.totals} goals={dailyStats.goals} />
       </div>
 
+      {/* UPDATED: Daily Review */}
       <PreviousDayReview 
         history={[...(profile?.dailyIntake || []), ...offlineIntake]} 
         currentDate={selectedDate} 

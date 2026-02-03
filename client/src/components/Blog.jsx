@@ -1,267 +1,371 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Helmet } from "react-helmet-async";
 import { motion, AnimatePresence } from 'framer-motion';
+// Firebase Imports
+import { db, auth } from '../firebase'; 
+import { 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  serverTimestamp, 
+  doc, 
+  updateDoc, 
+  arrayUnion, 
+  arrayRemove, 
+  limit 
+} from 'firebase/firestore';
 
-// --- ICONS ---
-const ArrowLeft = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M15 19l-7-7 7-7" />
-  </svg>
+// --- IMPORTED ICONS ---
+import cameraIcon from '../icons/image-plus.svg'; // Using your specific camera icon
+
+// --- HELPER: COLORED ICON ---
+const ColoredIcon = ({ src, colorClass = "bg-slate-900", sizeClass = "w-5 h-5" }) => (
+  <div 
+    className={`${sizeClass} ${colorClass}`}
+    style={{
+      WebkitMaskImage: `url("${src}")`,
+      WebkitMaskSize: 'contain',
+      WebkitMaskRepeat: 'no-repeat',
+      WebkitMaskPosition: 'center',
+      maskImage: `url("${src}")`,
+      maskSize: 'contain',
+      maskRepeat: 'no-repeat',
+      maskPosition: 'center',
+    }}
+  />
 );
 
-const ShareIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-  </svg>
-);
+// --- UI ICONS (Standard Utility) ---
+const UiIcons = {
+  Heart: ({ filled }) => <svg className={`w-5 h-5 ${filled ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>,
+  Message: () => <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
+  Share: () => <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" /></svg>,
+  Trophy: () => <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3M3.343 7.05l.707.707M6 12a6 6 0 019.33-4.858 6.002 6.002 0 011.602 1.602A6 6 0 0118 12a6 6 0 01-6 6 6 6 0 01-6-6z" /></svg>,
+  X: () => <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+};
 
-// --- STATIC BLOG DATA ---
-const STATIC_POSTS = [
-  {
-    id: 'dining-out-safely',
-    title: "How to Eat Out Without Fear: The Server Script",
-    category: "Dining Out",
-    author: "Quajaee Simmons",
-    date: "Jan 18, 2026",
-    readTime: "5 min",
-    image: "https://images.unsplash.com/photo-1559339352-11d035aa65de?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "Stop guessing. Use this exact script to communicate your allergies to restaurant staff.",
-    content: `
-      <p class="lead">For the 32 million Americans with food allergies, the simple question "Where should we eat?" can often induce panic. But with the right strategy, you can reclaim the joy of a restaurant meal.</p>
-      
-      <h3>The "Chef Card" Strategy</h3>
-      <p>Your first line of defense is a physical visual aid. We recommend carrying a "Chef Card" (available from <a href="https://www.foodallergy.org/resources/chef-cards" target="_blank" class="text-emerald-600 font-bold hover:underline">FARE</a>) that lists your specific allergies. Handing this to your server removes the dangerous game of "telephone" between the front of house and the kitchen.</p>
-      
-      <h3>The Script</h3>
-      <p>When ordering, be direct. Don't say "I'm avoiding gluten." Say: <br/><em>"I have a severe medical allergy to wheat. Can you please check with the chef if this dish can be prepared in a clean pan to avoid cross-contact?"</em></p>
-    `
-  },
-  {
-    id: 'identifying-cross-contact',
-    title: "Spotting Hidden Allergens: A Kitchen Safety Guide",
-    category: "Kitchen Safety",
-    author: "Quajaee Simmons",
-    date: "Jan 05, 2026",
-    readTime: "4 min",
-    image: "https://images.unsplash.com/photo-1556910103-1c02745a30bf?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "Ordering 'gluten-free' isn't enough if the preparation surface is contaminated. Learn the red flags.",
-    content: `
-      <p>You ordered the gluten-free pizza. The crust is certified gluten-free. But were the toppings grabbed from a bin full of crumbs? This is the reality of <strong>Cross-Contact</strong>.</p>
-      <p>According to the <a href="https://www.fda.gov/food/food-allergensgluten-free-guidance-documents-regulatory-information/food-allergens-what-you-need-know" target="_blank" class="text-emerald-600 font-bold hover:underline">FDA</a>, even a microscopic amount of an allergen can trigger anaphylaxis. When dining out, ask if the kitchen uses dedicated fryers and cutting boards.</p>
-    `
-  },
-  {
-    id: 'trusted-chains',
-    title: "Trusted Chains: 5 Spots with Verified Protocols",
-    category: "Recommendations",
-    author: "Quajaee Simmons",
-    date: "Dec 20, 2025",
-    readTime: "6 min",
-    image: "https://images.unsplash.com/photo-1554679665-f5537f187268?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "We audited 20 fast-casual chains on their transparency. See why Chipotle and Sweetgreen score high.",
-    content: `
-      <p>Fast food used to be a "no-go" zone for the allergy-conscious. Fortunately, the rise of "fast-casual" dining has brought transparency to the forefront.</p>
-      <h3>Top Performer: Chipotle</h3>
-      <p>Chipotle remains a gold standard because their menu is simple. Aside from the flour tortillas (wheat), almost everything else is naturally gluten-free.</p>
-    `
-  },
-  {
-    id: 'budget-friendly-allergies',
-    title: "Stop Overpaying: The 'Allergy Tax' Survival Guide",
-    category: "Shopping Smart",
-    author: "Quajaee Simmons",
-    date: "Nov 15, 2025",
-    readTime: "5 min",
-    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1200&q=80",
-    excerpt: "Gluten-free bread shouldn't bankrupt you. Here are 3 strategies to lower your grocery bill.",
-    content: `
-      <p>It's often called the "Allergy Tax"—the phenomenon where safe versions of staple foods cost 200% more than their standard counterparts. But eating safely doesn't have to be expensive.</p>
-      <h3>Focus on Whole Foods</h3>
-      <p>The most expensive items are usually processed "substitutes". Potatoes, rice, beans, and fresh meats are naturally allergen-free and significantly cheaper.</p>
-    `
-  }
-];
+// --- COMPONENT: GOAL STATUS BAR (Read-Only) ---
+const GoalStatusBar = () => {
+  const [celebrations, setCelebrations] = useState([]);
 
+  useEffect(() => {
+    const q = query(collection(db, "celebrations"), orderBy("createdAt", "desc"), limit(10));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setCelebrations(data);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  if (celebrations.length === 0) return null;
+
+  return (
+    <div className="pt-2 pb-4 overflow-x-auto no-scrollbar">
+      <div className="flex gap-4 px-4">
+        {celebrations.map((goal) => (
+          <div key={goal.id} className="flex flex-col items-center gap-2 flex-shrink-0 animate-in fade-in zoom-in duration-300">
+             <div className={`w-16 h-16 rounded-full p-1 border-2 border-emerald-500`}>
+                <div className={`w-full h-full rounded-full ${goal.color || "bg-emerald-100 text-emerald-600"} flex items-center justify-center border-2 border-white`}>
+                   <UiIcons.Trophy />
+                </div>
+             </div>
+             <div className="text-center max-w-[80px]">
+                <p className="text-xs font-bold text-slate-900 leading-tight mb-0.5">{goal.userName}</p>
+                <p className="text-[10px] text-slate-500 font-medium leading-tight line-clamp-2">{goal.action}</p>
+             </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENT: SIMPLE COMPOSER ---
+const Composer = () => {
+    const [text, setText] = useState("");
+    const [image, setImage] = useState(null); 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const fileInputRef = useRef(null);
+    const user = auth.currentUser;
+
+    // Handle Image Selection
+    const handleImageSelect = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImage(reader.result);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleCancel = () => {
+        setText("");
+        setImage(null);
+        if (fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const handlePost = async () => {
+        if (!user) {
+            alert("Please log in to post.");
+            return;
+        }
+        if (!text.trim() && !image) return;
+
+        setIsSubmitting(true);
+        try {
+            const postData = {
+                authorId: user.uid,
+                authorName: user.displayName || "Safespoon User",
+                authorAvatar: user.photoURL || `https://ui-avatars.com/api/?name=${user.displayName || "User"}&background=10b981&color=fff`,
+                content: text,
+                image: image, 
+                createdAt: serverTimestamp(),
+                type: "social",
+                likes: [],
+                comments: 0
+            };
+
+            await addDoc(collection(db, "posts"), postData);
+            handleCancel(); // Clear form after success
+
+        } catch (error) {
+            console.error("Error posting:", error);
+            alert("Failed to post. Check your connection.");
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const hasContent = text.length > 0 || image !== null;
+
+    return (
+        <div className="mx-4 mb-6 bg-white rounded-[1.5rem] p-4 shadow-sm border border-slate-50 transition-all">
+            {/* Header Input */}
+            <div className="flex gap-3 mb-2">
+                <div className="h-10 w-10 rounded-full bg-slate-100 overflow-hidden flex-shrink-0">
+                    {user?.photoURL ? (
+                        <img src={user.photoURL} alt="User" className="w-full h-full object-cover" />
+                    ) : (
+                        <div className="w-full h-full bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold">
+                           {user?.displayName ? user.displayName[0] : "U"}
+                        </div>
+                    )}
+                </div>
+                <div className="flex-1 pt-2">
+                    <textarea 
+                        placeholder="What's on your mind?"
+                        className="w-full bg-transparent font-medium text-slate-700 placeholder:text-slate-400 focus:outline-none resize-none min-h-[40px]"
+                        value={text}
+                        onChange={(e) => setText(e.target.value)}
+                        rows={text.length > 50 ? 3 : 1}
+                    />
+                </div>
+            </div>
+
+            {/* Image Preview */}
+            <AnimatePresence>
+                {image && (
+                    <motion.div 
+                        initial={{ opacity: 0, height: 0 }} 
+                        animate={{ opacity: 1, height: 'auto' }} 
+                        exit={{ opacity: 0, height: 0 }}
+                        className="mb-4 relative rounded-xl overflow-hidden group"
+                    >
+                        <img src={image} alt="Preview" className="w-full max-h-60 object-cover" />
+                        <button 
+                            onClick={() => { setImage(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                            className="absolute top-2 right-2 bg-black/60 text-white p-1 rounded-full backdrop-blur-sm"
+                        >
+                            <UiIcons.X />
+                        </button>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-between border-t border-slate-50 pt-3">
+                
+                {/* Image Upload Button (With Text) */}
+                <div className="flex gap-2">
+                    <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="flex items-center gap-2 p-2 px-3 rounded-full bg-slate-50 hover:bg-slate-100 transition-colors group"
+                    >
+                        <ColoredIcon src={cameraIcon} colorClass="bg-slate-400 group-hover:bg-emerald-600" sizeClass="w-5 h-5" />
+                        <span className="text-sm font-medium text-slate-500 group-hover:text-emerald-700">Upload</span>
+                    </button>
+                    <input 
+                        type="file" 
+                        ref={fileInputRef} 
+                        onChange={handleImageSelect} 
+                        accept="image/*" 
+                        className="hidden" 
+                    />
+                </div>
+
+                <div className="flex items-center gap-2">
+                    {/* Cancel Button (Shows only when typing) */}
+                    <AnimatePresence>
+                        {hasContent && (
+                            <motion.button 
+                                initial={{ opacity: 0, x: 10 }} 
+                                animate={{ opacity: 1, x: 0 }} 
+                                exit={{ opacity: 0, x: 10 }}
+                                onClick={handleCancel}
+                                className="text-xs font-semibold text-slate-400 capitalize tracking-tight hover:text-rose-500 px-3"
+                            >
+                                Cancel
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
+
+                    {/* Post Button */}
+                    <button 
+                        disabled={!hasContent || isSubmitting}
+                        onClick={handlePost}
+                        className="bg-emerald-500 text-white px-6 py-2 rounded-full text-sm font-bold disabled:opacity-50 transition-all active:scale-95"
+                    >
+                        {isSubmitting ? "Posting..." : "Post"}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENT: POST CARD ---
+const PostCard = ({ post }) => {
+    const user = auth.currentUser;
+    const isLiked = post.likes?.includes(user?.uid);
+    const likeCount = post.likes?.length || 0;
+
+    const toggleLike = async () => {
+        if (!user) return;
+        const postRef = doc(db, "posts", post.id);
+        try {
+            if (isLiked) {
+                await updateDoc(postRef, { likes: arrayRemove(user.uid) });
+            } else {
+                await updateDoc(postRef, { likes: arrayUnion(user.uid) });
+            }
+        } catch (err) {
+            console.error("Error liking post:", err);
+        }
+    };
+
+    const getTimeAgo = (timestamp) => {
+        if (!timestamp) return "Just now";
+        const date = timestamp.toDate();
+        const now = new Date();
+        const diff = Math.floor((now - date) / 1000);
+        if (diff < 60) return "Just now";
+        if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+        if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+        return `${Math.floor(diff / 86400)}d ago`;
+    };
+
+    return (
+        <div className="bg-white rounded-[1.5rem] p-4 shadow-sm border border-slate-50 mb-4 mx-4 transition-all hover:shadow-md">
+            {/* Header */}
+            <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-slate-100 overflow-hidden">
+                        <img src={post.authorAvatar} alt="" className="w-full h-full object-cover" />
+                    </div>
+                    <div>
+                        <h4 className="font-bold text-sm text-slate-900 leading-tight">{post.authorName}</h4>
+                        <span className="text-xs font-medium text-slate-400">{getTimeAgo(post.createdAt)}</span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Content */}
+            {post.content && (
+                <p className="text-sm text-slate-700 font-medium leading-relaxed mb-3 whitespace-pre-wrap">{post.content}</p>
+            )}
+
+            {/* Image Attachment (Universal for all post types) */}
+            {post.image && (
+                 <div className="mb-3 rounded-xl overflow-hidden bg-slate-50 border border-slate-100">
+                    <img src={post.image} alt="Post Attachment" className="w-full h-auto object-cover" />
+                 </div>
+            )}
+
+            {/* Interaction */}
+            <div className="flex items-center gap-6 pt-3 border-t border-slate-50">
+                <button onClick={toggleLike} className="flex items-center gap-1.5 text-xs font-bold transition-colors text-slate-400 hover:text-rose-500">
+                    <UiIcons.Heart filled={isLiked} /> <span className={isLiked ? "text-rose-500" : ""}>{likeCount}</span>
+                </button>
+                <button className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-emerald-500">
+                    <UiIcons.Message /> {post.comments || 0}
+                </button>
+                <button className="flex items-center gap-1.5 text-xs font-bold text-slate-400 hover:text-slate-600 ml-auto">
+                    <UiIcons.Share />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- MAIN PAGE ---
 export const Blog = () => {
   const [posts, setPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [selectedPost, setSelectedPost] = useState(null);
 
   useEffect(() => {
-    setLoading(true);
-    setTimeout(() => {
-        setPosts(STATIC_POSTS);
-        setLoading(false);
-    }, 400);
+    const unsubscribeAuth = auth.onAuthStateChanged((user) => {
+        if(user) {
+             const q = query(collection(db, "posts"), orderBy("createdAt", "desc"), limit(20));
+             const unsubscribePosts = onSnapshot(q, (snapshot) => {
+                setPosts(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                setLoading(false);
+             }, (error) => {
+                 console.error("Auth/Firestore Error:", error);
+                 setLoading(false);
+             });
+             return () => unsubscribePosts();
+        } else {
+            setLoading(false);
+        }
+    });
+    return () => unsubscribeAuth();
   }, []);
 
-  // --- SEO HELPERS ---
-  const generateListSchema = () => JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "ItemList",
-      "itemListElement": posts.map((post, index) => ({
-          "@type": "ListItem",
-          "position": index + 1,
-          "url": `https://safespoon.com/blog/${post.id}`,
-          "name": post.title
-      }))
-  });
-
-  const generateArticleSchema = (post) => JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "BlogPosting",
-      "headline": post.title,
-      "image": [post.image],
-      "datePublished": new Date(post.date).toISOString(),
-      "author": [{ "@type": "Person", "name": post.author }],
-      "publisher": { "@type": "Organization", "name": "Safespoon" }
-  });
-
-  // --- ARTICLE READING VIEW ---
-  if (selectedPost) {
-      return (
-        <AnimatePresence>
-            <motion.article 
-                initial={{ opacity: 0, y: 20 }} 
-                animate={{ opacity: 1, y: 0 }} 
-                exit={{ opacity: 0, y: 20 }}
-                className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen z-50 fixed inset-0 overflow-y-auto"
-            >
-                {/* SEO for Article */}
-                <Helmet>
-                    <title>{selectedPost.title} | Safespoon Insights</title>
-                    <meta name="description" content={selectedPost.excerpt} />
-                    <script type="application/ld+json">{generateArticleSchema(selectedPost)}</script>
-                </Helmet>
-                
-                {/* Navbar */}
-                <div className="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 h-[60px] flex items-center justify-between">
-                    <button 
-                        onClick={() => setSelectedPost(null)} 
-                        className="flex items-center gap-1 text-emerald-600 font-bold active:opacity-50 transition-opacity"
-                    >
-                        <ArrowLeft />
-                        <span className="text-sm uppercase tracking-widest">Back</span>
-                    </button>
-                    <button className="text-emerald-600 active:opacity-50 transition-opacity">
-                        <ShareIcon />
-                    </button>
-                </div>
-
-                <div className="bg-white min-h-screen">
-                    {/* Hero Image */}
-                    <div className="w-full aspect-video bg-slate-100 mb-8 overflow-hidden">
-                        <img src={selectedPost.image} alt={selectedPost.title} className="w-full h-full object-cover" />
-                    </div>
-
-                    {/* Article Content */}
-                    <div className="px-6 md:px-8 max-w-2xl mx-auto pb-24">
-                        {/* Meta */}
-                        <div className="flex items-center gap-3 text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">
-                            <span className="text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md">{selectedPost.category}</span>
-                            <span>{selectedPost.date}</span>
-                        </div>
-                        
-                        <h1 className="text-3xl md:text-4xl font-black text-slate-900 leading-tight mb-6 tracking-tight">
-                            {selectedPost.title}
-                        </h1>
-
-                        <div className="flex items-center gap-3 border-b border-slate-50 pb-8 mb-8">
-                            <div className="h-10 w-10 rounded-full bg-slate-200 overflow-hidden border border-white shadow-sm ring-1 ring-slate-100">
-                                <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=10b981&color=fff`} alt="Author" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-bold text-slate-900 leading-tight">{selectedPost.author}</p>
-                                <p className="text-[10px] text-slate-400 font-bold tracking-tight capitalize">{selectedPost.readTime} Read</p>
-                            </div>
-                        </div>
-
-                        {/* Prose Body */}
-                        <div 
-                            className="prose prose-lg prose-slate max-w-none 
-                            prose-headings:font-black prose-headings:tracking-tight prose-headings:text-slate-900 
-                            prose-p:text-slate-600 prose-p:leading-loose prose-p:font-medium prose-p:text-base
-                            prose-a:text-emerald-600 prose-a:font-bold prose-a:no-underline hover:prose-a:underline
-                            prose-strong:text-slate-900 prose-strong:font-black"
-                        >
-                            <div dangerouslySetInnerHTML={{ __html: selectedPost.content }} />
-                        </div>
-                    </div>
-                </div>
-            </motion.article>
-        </AnimatePresence>
-      );
-  }
-
-  // --- LIST VIEW ---
   return (
-    <div className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
-      <Helmet>
-        <title>Safespoon Insights | Food Safety & Allergy Tips</title>
-        <meta name="description" content="Expert guides on dining out safely, understanding cross-contact, and managing food allergies." />
-        <script type="application/ld+json">{generateListSchema()}</script>
-      </Helmet>
+    <div className="w-full pb-32 font-['Switzer'] bg-gray-50 min-h-screen">
+      <Helmet><title>Safespoon Community</title></Helmet>
 
-      {/* Header - MATCHING DASHBOARD.JSX STYLE */}
-      <div className="pt-10 pb-4 px-4">
-         <div className="flex flex-col">
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">
-                Community<br/>
-                <span className="text-emerald-600">Insights</span>
+      {/* Header */}
+      <div className="pt-safe-top pb-2 px-4 bg-gray-50 backdrop-blur-md sticky top-0 z-30 border-b border-slate-50">
+         <div className="flex flex-col pt-2">
+            <h1 className="text-3xl font-black leading-tight tracking-tight text-slate-900">
+                Community Feed
             </h1>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
-                Food Safety & Allergy Tips
-            </p>
          </div>
       </div>
 
-      {/* Feed - MATCHING DASHBOARD CARD STYLE */}
-      <div className="px-4 space-y-4">
+      {/* Status Bar (Read-Only) */}
+      <div className="bg-white border-b border-slate-50 mb-4">
+         <GoalStatusBar />
+      </div>
+
+      {/* Composer */}
+      <Composer />
+
+      {/* Feed */}
+      <div className="max-w-2xl mx-auto">
         {loading ? (
-            <div className="space-y-4">
-               {[1,2,3].map(i => <div key={i} className="h-64 bg-white animate-pulse rounded-[1.5rem] border border-slate-50"></div>)}
+            <div className="space-y-4 px-4">
+               {[1,2,3].map(i => <div key={i} className="h-48 bg-white animate-pulse rounded-[1.5rem] border border-slate-50 mx-4"></div>)}
             </div>
         ) : (
-            posts.map((post) => (
-                <article 
-                    key={post.id}
-                    className="bg-white rounded-[1.5rem] p-3 shadow-sm border border-slate-50 active:scale-[0.98] transition-all cursor-pointer group" 
-                    onClick={() => setSelectedPost(post)}
-                >
-                    {/* Image Container - Rounded corners to match inner padding */}
-                    <div className="h-48 w-full relative bg-slate-100 rounded-2xl overflow-hidden mb-4">
-                        <img 
-                            src={post.image} 
-                            alt={post.title} 
-                            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" 
-                        />
-                        <div className="absolute top-3 left-3 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest text-emerald-600 shadow-sm border border-white/20">
-                            {post.category}
-                        </div>
-                    </div>
-
-                    {/* Content */}
-                    <div className="px-2 pb-2">
-                        <h2 className="text-lg font-black text-slate-900 leading-tight mb-2 line-clamp-2">
-                            {post.title}
-                        </h2>
-                        <p className="text-xs text-slate-400 font-bold line-clamp-2 leading-relaxed mb-4">
-                            {post.excerpt}
-                        </p>
-
-                        <div className="flex items-center justify-between pt-2 border-t border-slate-50">
-                            <div className="flex items-center gap-2">
-                                <div className="h-5 w-5 rounded-full bg-slate-200 overflow-hidden">
-                                     <img src={`https://ui-avatars.com/api/?name=Quajaee+Simmons&background=10b981&color=fff`} alt="" />
-                                </div>
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{post.readTime}</span>
-                            </div>
-                            <span className="text-[10px] font-black text-emerald-600 capitalize tracking-tight group-hover:translate-x-1 transition-transform">Read</span>
-                        </div>
-                    </div>
-                </article>
-            ))
+            posts.map((post) => <PostCard key={post.id} post={post} />)
         )}
+        {!loading && posts.length === 0 && <p className="text-center text-slate-400 font-bold py-10">No posts yet. Start the conversation!</p>}
       </div>
     </div>
   );
