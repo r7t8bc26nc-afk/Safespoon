@@ -30,7 +30,7 @@ const LogoMark = ({ className }) => (
 
 // 2. The Full Vertical Lockup (Icon + Text)
 const SafeSpoonLogo = () => (
-  <div className="flex flex-col items-start gap-2 md:gap-4">
+  <div className="flex flex-col items-start gap-2 pt-12 md:gap-4">
     {/* DESIGN FIX: 
        - Mobile: h-10 (40px) prevents the wide icon from blowing out the screen width.
        - Desktop: h-16 (64px) is large enough to anchor the brand without looking cartoonish.
@@ -139,7 +139,7 @@ const Login = ({ onLogin }) => {
             </p>
         </div>
         <div className="relative z-20 text-xs text-slate-400 font-bold uppercase tracking-widest">
-            © {new Date().getFullYear()} SafeSpoon Inc
+            © {new Date().getFullYear()} Safespoon Inc
         </div>
       </div>
 
@@ -155,7 +155,7 @@ const Login = ({ onLogin }) => {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full">
                 
                 <div className="mb-8 text-left">
-                    <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-0">
+                    <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight mb-0">
                         {isSignup ? "Get started" : "Welcome back"}
                     </h1>
                     <p className="text-slate-500 font-medium tracking-tight text-lg">
@@ -170,7 +170,7 @@ const Login = ({ onLogin }) => {
                           type="email" 
                           value={email} 
                           onChange={(e) => setEmail(e.target.value)} 
-                          placeholder="name@example.com" 
+                          placeholder="harveyspecter@email.com" 
                         />
 
                         <InputField 
@@ -234,7 +234,7 @@ const Login = ({ onLogin }) => {
                     <p className="text-sm font-medium text-slate-400">
                         {isSignup ? "Already have an account?" : "Don't have an account?"}
                         <button onClick={() => { setIsSignup(!isSignup); setError(''); }} className="ml-1 text-slate-900 font-bold underline decoration-2 decoration-emerald-400">
-                            {isSignup ? "Log In" : "Sign Up"}
+                            {isSignup ? "Login" : "Sign Up"}
                         </button>
                     </p>
                 </div>

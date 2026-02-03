@@ -369,7 +369,7 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
                             <div className="flex gap-2 items-center mb-2">
                                 <div className="relative group flex-1">
                                     <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"><ColoredIcon src={ICONS.search} colorClass="bg-current" sizeClass="w-5 h-5" /></div>
-                                    <input autoFocus type="search" placeholder="Search food or scan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 font-bold text-slate-900 placeholder:text-slate-400 outline-none" />
+                                    <input autoFocus type="search" placeholder="Search food or scan..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full bg-slate-50 border-none rounded-2xl py-4 pl-12 pr-4 font-medium text-slate-700 placeholder:text-slate-400 outline-none" />
                                 </div>
                                 <button onClick={() => setIsScanning(true)} className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 hover:bg-slate-100 hover:text-slate-900 transition-colors">
                                     <ColoredIcon src={scannerIcon} colorClass="bg-current" sizeClass="w-6 h-6" />
@@ -634,9 +634,9 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
       <div className="pt-10 pb-4 px-4">
           <div className="flex justify-between items-start mb-6">
              <div className="flex flex-col">
-                <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">
-                    {profile?.firstName ? `Hi, ${profile.firstName}` : 'Hello there'} <br/>
-                    <span className="text-emerald-600">Ready to thrive?</span>
+                <h1 className="text-2xl font-bold tracking-tightest text-slate-900 leading-tight">
+                    {profile?.firstName ? `Hello, ${profile.firstName}` : 'Hello there'} <br/>
+                    <span className="text-emerald-600 font-black leading-tight tracking-tight text-3xl">Nutrition Breakdown</span>
                 </h1>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-2">
                     {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}

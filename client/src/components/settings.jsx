@@ -390,14 +390,14 @@ const Settings = () => {
             <button 
               disabled={!hasChanges || isSaving}
               onClick={saveChanges}
-              className={`w-full py-5 font-black text-sm uppercase tracking-tight rounded-2xl transition-all shadow-xl active:scale-[0.98] ${hasChanges ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'}`}
+              className={`w-full py-5 font-semibold text-sm capitalize tracking-tight rounded-2xl transition-all shadow-xl active:scale-[0.98] ${hasChanges ? 'bg-slate-900 text-white' : 'bg-slate-200 text-slate-400 cursor-not-allowed shadow-none'}`}
             >
                 {isSaving ? 'Saving Profile...' : 'Save Changes'}
             </button>
             
             <div className="flex gap-3 mt-2">
-                <button onClick={() => signOut(auth)} className="flex-1 py-4 border border-slate-200 bg-white text-slate-900 font-black text-xs capitalize tracking-tight rounded-2xl hover:bg-slate-50 transition-colors">Sign Out</button>
-                <button className="flex-1 py-4 border border-transparent bg-rose-100 text-rose-600 font-black text-xs capitalize tracking-tight rounded-2xl hover:bg-rose-100 transition-colors">Delete Account</button>
+                <button onClick={() => signOut(auth)} className="flex-1 py-4 border border-slate-200 bg-white text-slate-900 font-semibold text-xs capitalize tracking-tight rounded-2xl hover:bg-slate-50 transition-colors">Sign Out</button>
+                <button className="flex-1 py-4 border border-transparent bg-rose-100 text-rose-600 font-bold text-xs capitalize tracking-tight rounded-2xl hover:bg-rose-100 transition-colors">Delete Account</button>
             </div>
         </section>
       </div>

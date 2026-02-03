@@ -1,8 +1,9 @@
+// src/firebase.js
 import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore"; // Add this if you use database
+import { getFirestore } from "firebase/firestore"; // <--- This was missing
+import { getMessaging } from "firebase/messaging";
 
-// ✅ Hardcoded keys to bypass Vercel issues
 const firebaseConfig = {
   apiKey: "AIzaSyBNZ67JjwoFIXXDg5OK6w9SuabhQmzZ7aw",
   authDomain: "vensight-bfde4.firebaseapp.com",
@@ -13,6 +14,10 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
+
+// Initialize services
 export const auth = getAuth(app);
-export const db = getFirestore(app); // Export database
+export const db = getFirestore(app); // <--- App.jsx needs this!
+export const messaging = getMessaging(app);
+
 export default app;

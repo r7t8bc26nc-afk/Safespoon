@@ -128,7 +128,7 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                                 placeholder="Search recipes, ingredients, or scan barcode..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full h-10 bg-slate-100 rounded-xl pl-10 pr-4 font-semibold text-slate-900 placeholder:text-slate-500 outline-none text-sm" 
+                                className="w-full h-10 bg-slate-100 rounded-xl pl-10 pr-4 font-medium text-slate-700 placeholder:text-slate-500 outline-none text-sm" 
                             />
                         </div>
                     </div>
