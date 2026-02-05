@@ -5,6 +5,8 @@ import { collection, query, limit, where, getDocs, doc, getDoc, setDoc, updateDo
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 import { PlateScanner } from './PlateScanner'; 
+// Ensure this import is correct
+import { searchRestaurantMenu } from '../services/RestaurantService';
 
 // --- ICON IMPORTS ---
 import fireIcon from '../icons/fire.svg';
@@ -37,7 +39,6 @@ const ICONS = {
     history: historyIcon
 };
 
-// --- CONFIGURATION ---
 const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
 const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7';
 
@@ -77,7 +78,7 @@ const ModalPortal = ({ children }) => {
     return ReactDOM.createPortal(children, document.body);
 };
 
-// --- GOALS MODAL ---
+// --- SUB-COMPONENTS ---
 const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
     const [step, setStep] = useState(1);
     const [selectedGoal, setSelectedGoal] = useState('maintain');
@@ -165,9 +166,6 @@ const GoalsModal = ({ onClose, onSave, currentWeight, tdee }) => {
     );
 };
 
-// --- MODIFIED SUB-COMPONENTS ---
-
-// 1. DATE STRIP (iOS Style Ellipse)
 const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => {
     const days = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
     const getDayStatus = (dateObj) => {
@@ -188,17 +186,13 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
                 const isSelected = date.toDateString() === selectedDate.toDateString();
                 const status = getDayStatus(date);
                 
-                // Visual Logic:
-                // - Past days get colored backgrounds (Success/Warning)
-                // - Current/Selected day gets NO background on the circle, but an ELLIPSE beneath.
                 let bgClass = 'bg-transparent text-slate-400';
                 
                 if (!isSelected) {
                     if (status === 'success') bgClass = 'bg-emerald-50 text-emerald-600 border border-emerald-100';
                     else if (status === 'warning') bgClass = 'bg-amber-50 text-amber-600 border border-amber-100';
-                    else if (offset === 0) bgClass = 'bg-slate-50 text-slate-900 border border-slate-100'; // Today (unselected)
+                    else if (offset === 0) bgClass = 'bg-slate-50 text-slate-900 border border-slate-100';
                 } else {
-                    // Selected state: standard text, indicator below
                     bgClass = 'bg-transparent text-slate-900 font-bold';
                 }
 
@@ -210,7 +204,6 @@ const DateStrip = ({ intakeHistory, dailyGoal, selectedDate, onSelectDate }) => 
                             {dayNumber}
                         </div>
                         
-                        {/* THE ELLIPSE INDICATOR */}
                         <div className={`h-1.5 w-1.5 rounded-full bg-emerald-500 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0'}`} />
                     </button>
                 )
@@ -277,13 +270,11 @@ const HealthVitalsCard = ({ totals, goals }) => {
     );
 };
 
-// 2. DAILY REVIEW (Daily Grading & Summary)
 const PreviousDayReview = ({ history, currentDate, goals }) => {
     const prevDate = new Date(currentDate);
     prevDate.setDate(prevDate.getDate() - 1);
     const dateStr = prevDate.toDateString();
     
-    // Aggregate yesterday's totals
     const yesterdaysLogs = history.filter(item => new Date(item.timestamp).toDateString() === dateStr && !item.type);
 
     if (yesterdaysLogs.length === 0) return null; 
@@ -300,22 +291,18 @@ const PreviousDayReview = ({ history, currentDate, goals }) => {
         let score = 100;
         const reasons = [];
 
-        // Deductions
         if (dailyTotals.sugar > goals.sugar * 1.2) { score -= 15; reasons.push("High Sugar"); }
         if (dailyTotals.sodium > goals.sodium * 1.2) { score -= 15; reasons.push("High Sodium"); }
         if (dailyTotals.satFat > goals.satFat * 1.2) { score -= 10; reasons.push("High Sat. Fat"); }
         
-        // Calorie Adherence (Penalty for under-eating drastically or over-eating)
         const calRatio = dailyTotals.calories / goals.calories;
         if (calRatio > 1.15) { score -= 10; reasons.push("Calorie Surplus"); }
         else if (calRatio < 0.6) { score -= 10; reasons.push("Low Intake"); }
 
-        // Bonuses
         if (dailyTotals.protein >= goals.protein * 0.9) { score += 5; reasons.push("Great Protein"); }
 
         score = Math.min(100, Math.max(0, score));
 
-        // Generate Human Summary
         let summary = "A balanced day overall.";
         if (reasons.includes("High Sodium") && reasons.includes("High Sugar")) summary = "Watch the processed foods; sodium and sugar were high.";
         else if (reasons.includes("Great Protein") && score > 80) summary = "Solid performance! Protein goals hit and macros balanced.";
@@ -345,7 +332,6 @@ const PreviousDayReview = ({ history, currentDate, goals }) => {
                     <p className="text-2xl font-black mb-1">{rating.grade} <span className="text-sm font-bold opacity-70 align-middle ml-1">({rating.score})</span></p>
                     <p className="text-xs font-bold opacity-90 leading-relaxed max-w-[240px]">{rating.summary}</p>
                 </div>
-                {/* Decorative Background Icon */}
                 <div className="absolute -right-4 -bottom-4 opacity-10 transform rotate-12">
                     <ColoredIcon src={ICONS.vitals} colorClass="bg-current" sizeClass="w-32 h-32" />
                 </div>
@@ -420,7 +406,18 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
                                 {suggestions.map((res) => (
                                     <article key={res.fdcId} onClick={() => onSelect(res)} className="flex items-center gap-4 p-4 active:bg-slate-50 rounded-2xl cursor-pointer border-b border-slate-50 last:border-0 transition-colors">
                                         <div className="h-10 w-10 rounded-xl overflow-hidden shrink-0 bg-white p-1 border border-slate-100 shadow-sm"><img src={res.logo} alt="" className="w-full h-full object-contain" onError={(e) => e.target.src = 'https://cdn-icons-png.flaticon.com/512/706/706164.png'} /></div>
-                                        <div className="flex-1"><h4 className="font-bold text-slate-900 text-sm leading-tight">{res.name}</h4><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{res.brand}</p></div>
+                                        <div className="flex-1">
+                                            <div className="flex items-center gap-2">
+                                                <h4 className="font-bold text-slate-900 text-sm leading-tight">{res.name}</h4>
+                                                {/* VISUAL BADGE FOR VERIFIED MENU ITEMS */}
+                                                {res.isRestaurant && (
+                                                    <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest border border-emerald-200">
+                                                        Verified Menu
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">{res.brand}</p>
+                                        </div>
                                         <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center text-slate-200 shadow-sm font-light text-xl">+</div>
                                     </article>
                                 ))}
@@ -437,8 +434,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
     );
 };
 
-// --- MAIN DASHBOARD ---
-// UPDATED: Now accepts 'deferredPrompt' prop from App.jsx
 const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -462,9 +457,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
     } catch (e) { console.error("Local load fail", e); }
   }, []);
 
-  // --- IOS & PWA DETECTION ---
   useEffect(() => {
-    // Only check for iOS style, 'deferredPrompt' is handled via props now
     const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
     const isStandAlone = window.matchMedia('(display-mode: standalone)').matches;
     if (isDeviceIOS && !isStandAlone) setIsIOS(true);
@@ -490,12 +483,10 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
       if (profile?.uid) { await updateDoc(doc(db, "users", profile.uid), { hasSetGoals: true }); }
   };
 
-  // --- INSTALL HANDLER ---
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     const { outcome } = await deferredPrompt.userChoice;
-    // Note: The parent App.jsx handles the 'appinstalled' event to clear the prompt
     console.log(`User response to install prompt: ${outcome}`);
   };
 
@@ -562,8 +553,30 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
       } else { alert("Could not detect food. Please try again."); }
   };
 
+  // --- UPDATED: HANDLE PRODUCT SELECTION ---
   const handleProductSelect = async (product) => {
       setSelectedProduct({ ...product, fullName: product.name, coreMetrics: { calories: { amount: 0 } } }); 
+      
+      // CASE A: Restaurant Item
+      if (product.isRestaurant && product.details.macros) {
+          const m = product.details.macros; // Safe access
+          setSelectedProduct(prev => ({
+              ...prev,
+              servingLabel: "1 serving", 
+              householdReference: product.details.description,
+              coreMetrics: {
+                  calories: { amount: m.calories || 0 },
+                  protein: { amount: m.protein || 0 },
+                  fat: { amount: m.fat || 0 },
+                  carbs: { amount: m.carbs || 0 },
+                  sugar: { amount: 0 }, fiber: { amount: 0 }, sodium: { amount: 0 }, 
+                  satFat: { amount: 0 }, cholesterol: { amount: 0 } 
+              }
+          }));
+          return;
+      }
+
+      // CASE B: USDA Item (Existing logic)
       try {
         const response = await fetch(`https://api.nal.usda.gov/fdc/v1/food/${product.fdcId}?api_key=${USDA_API_KEY}`);
         const data = await response.json();
@@ -602,20 +615,59 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
     setTimeout(() => { setSelectedProduct(null); setTrackingSuccess(false); setPortionSize(1.0); setIsSearching(false); }, 1500);
   };
 
+  // --- UPDATED: SEARCH LOGIC (HYBRID) ---
   useEffect(() => {
     if (searchQuery.length < 3) { setSuggestions([]); return; }
+    
     const timeoutId = setTimeout(async () => {
         setIsApiLoading(true);
         try {
-            const res = await fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(searchQuery)}&pageSize=8&dataType=Branded,Foundation`);
-            const data = await res.json();
-            if (data.foods) {
-                setSuggestions(data.foods.map(f => ({
-                    id: f.fdcId, fdcId: f.fdcId, name: f.description, brand: f.brandOwner || (f.dataType === 'Foundation' ? 'Basic' : 'Generic'), logo: getLogoUrl(f.brandOwner), isExternal: true
-                })));
+            // Run BOTH searches in parallel
+            const [usdaRes, restaurantRes] = await Promise.all([
+                // A. USDA Search
+                fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(searchQuery)}&pageSize=8&dataType=Branded,Foundation`).then(r => r.json()),
+                
+                // B. Restaurant Service
+                searchRestaurantMenu(searchQuery)
+            ]);
+
+            const newSuggestions = [];
+
+            // 1. PUSH RESTAURANT ITEMS FIRST (If any)
+            if (restaurantRes.items && restaurantRes.items.length > 0) {
+                restaurantRes.items.forEach(item => {
+                    newSuggestions.push({
+                        id: item.id,
+                        fdcId: `rest-${item.id}`,
+                        name: item.name,
+                        brand: item.brand,
+                        logo: getLogoUrl(item.brand),
+                        isRestaurant: true,
+                        details: item 
+                    });
+                });
             }
-        } catch (e) { } finally { setIsApiLoading(false); }
+
+            // 2. PUSH USDA ITEMS SECOND
+            if (usdaRes.foods) {
+                usdaRes.foods.forEach(f => {
+                    newSuggestions.push({
+                        id: f.fdcId, 
+                        fdcId: f.fdcId, 
+                        name: f.description, 
+                        brand: f.brandOwner || (f.dataType === 'Foundation' ? 'Basic' : 'Generic'), 
+                        logo: getLogoUrl(f.brandOwner), 
+                        isExternal: true
+                    });
+                });
+            }
+
+            setSuggestions(newSuggestions);
+
+        } catch (e) { console.error("Search failed", e); } 
+        finally { setIsApiLoading(false); }
     }, 500);
+
     return () => clearTimeout(timeoutId);
   }, [searchQuery]);
 
@@ -694,7 +746,6 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
           <HealthVitalsCard totals={dailyStats.totals} goals={dailyStats.goals} />
       </div>
 
-      {/* UPDATED: Daily Review */}
       <PreviousDayReview 
         history={[...(profile?.dailyIntake || []), ...offlineIntake]} 
         currentDate={selectedDate} 

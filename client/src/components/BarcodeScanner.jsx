@@ -1,76 +1,126 @@
-import React, { useEffect, useRef } from 'react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import React, { useEffect, useRef, useState } from 'react';
+import { Html5Qrcode } from 'html5-qrcode';
+import { motion } from 'framer-motion';
 
 const BarcodeScanner = ({ onDetected, onClose }) => {
+  const scannerId = "html5qr-code-full-region";
   const scannerRef = useRef(null);
-  const regionId = "html5qr-code-full-region";
+  const [permissionError, setPermissionError] = useState(false);
+
+  // Define the exact scan region dimensions. 
+  // UPCs are wide and short, so we use a rectangular ratio.
+  const scanRegion = { width: 300, height: 120 };
 
   useEffect(() => {
-    // 1. Initialize the scanner with optimized settings for food packaging
-    const scanner = new Html5QrcodeScanner(regionId, {
-      fps: 10,                 // Frames per second for smooth scanning
-      qrbox: { width: 250, height: 150 }, // Rectangular box fits standard barcodes better
-      aspectRatio: 1.0,        // Ensures the video feed doesn't stretch
-      rememberLastUsedCamera: true,
-      supportedScanTypes: [0]  // Focuses specifically on camera scanning
-    });
-
-    // 2. Define success and failure callbacks
-    const onScanSuccess = (decodedText) => {
-      // decodedText will be the UPC string (e.g., "012345678901")
-      onDetected(decodedText);
-      // Clean up the scanner once a code is found
-      scanner.clear().catch(error => console.error("Failed to clear scanner", error));
-    };
-
-    const onScanFailure = (error) => {
-      // This fires continuously while no barcode is in view; usually left empty
-    };
-
-    // 3. Render the scanner into the DOM
-    scanner.render(onScanSuccess, onScanFailure);
+    const scanner = new Html5Qrcode(scannerId);
     scannerRef.current = scanner;
 
-    // Cleanup: Stop the camera when the component unmounts
+    const config = {
+      fps: 15,
+      qrbox: scanRegion, // Forces the scanner to ONLY read inside this box
+      aspectRatio: 1.0,
+      disableFlip: false,
+    };
+
+    // Start the camera
+    scanner.start(
+      { facingMode: "environment" }, 
+      config,
+      (decodedText) => {
+        // Success callback
+        // Optional: Add a vibration on success for tactile feedback
+        if (navigator.vibrate) navigator.vibrate(200);
+        
+        onDetected(decodedText);
+        
+        // Stop scanning immediately after detection to prevent duplicates
+        scanner.stop().catch(err => console.error("Failed to stop", err));
+      },
+      (errorMessage) => {
+        // scan failure callback (fires frequently, usually ignored)
+      }
+    ).catch(err => {
+      console.error("Camera start error:", err);
+      setPermissionError(true);
+    });
+
+    // Cleanup
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.clear().catch(error => console.error("Cleanup failed", error));
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch(console.error);
+        scannerRef.current.clear().catch(console.error);
       }
     };
   }, [onDetected]);
 
   return (
-    <div className="fixed inset-0 z-[12000] bg-slate-900/95 backdrop-blur-md flex flex-col font-['Switzer'] p-6">
-      {/* Header UI */}
-      <div className="flex justify-between items-center mb-8 pt-4">
-        <div>
-          <h2 className="text-white text-xl font-black tracking-tight">Scan Product</h2>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest mt-1">Point at a barcode</p>
-        </div>
-        <button 
-          onClick={onClose}
-          className="h-10 px-4 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl transition-colors"
-        >
-          Close
-        </button>
-      </div>
+    <div className="fixed inset-0 z-[12000] bg-slate-900 flex flex-col font-['Switzer']">
+      
+      {/* 1. The Video Layer */}
+      {/* We make this cover the screen. The scanner library injects the <video> here */}
+      <div id={scannerId} className="absolute inset-0 w-full h-full object-cover" />
 
-      {/* The Scanner Viewfinder */}
-      <div className="relative flex-1 flex items-center justify-center">
+      {/* 2. The Visual Overlay (The "Darkening" + Clear Window) */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        {/* This div creates the clear window. 
+            The massive box-shadow creates the dark overlay around it.
+            This guarantees the "hole" aligns perfectly with the center of the screen.
+        */}
         <div 
-          id={regionId} 
-          className="w-full max-w-sm rounded-3xl overflow-hidden border-2 border-white/10 shadow-2xl"
-        ></div>
-        
-        {/* Subtle Overlay Hint */}
-        <div className="absolute inset-0 pointer-events-none border-[40px] border-slate-900/40 rounded-3xl"></div>
+          className="relative rounded-2xl border-2 border-emerald-500/50 shadow-[0_0_0_9999px_rgba(15,23,42,0.90)] z-10"
+          style={{ width: scanRegion.width, height: scanRegion.height }}
+        >
+            {/* Animated Scanning Line */}
+            <motion.div 
+                animate={{ top: ['0%', '100%', '0%'] }}
+                transition={{ duration: 2.5, repeat: Infinity, ease: "linear" }}
+                className="absolute left-0 right-0 h-0.5 bg-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.8)]"
+            />
+            
+            {/* Corner Indicators for aesthetics */}
+            <div className="absolute top-0 left-0 w-4 h-4 border-t-4 border-l-4 border-emerald-500 -mt-0.5 -ml-0.5 rounded-tl-lg"/>
+            <div className="absolute top-0 right-0 w-4 h-4 border-t-4 border-r-4 border-emerald-500 -mt-0.5 -mr-0.5 rounded-tr-lg"/>
+            <div className="absolute bottom-0 left-0 w-4 h-4 border-b-4 border-l-4 border-emerald-500 -mb-0.5 -ml-0.5 rounded-bl-lg"/>
+            <div className="absolute bottom-0 right-0 w-4 h-4 border-b-4 border-r-4 border-emerald-500 -mb-0.5 -mr-0.5 rounded-br-lg"/>
+        </div>
       </div>
 
-      {/* Footer Instructions */}
-      <div className="mt-8 text-center">
-        <p className="text-slate-500 text-[11px] font-medium leading-relaxed max-w-[200px] mx-auto">
-          For best results, ensure the barcode is well-lit and centered in the frame.
-        </p>
+      {/* 3. UI Controls Layer */}
+      <div className="relative z-20 flex-1 flex flex-col justify-between p-6 pointer-events-none">
+        
+        {/* Header */}
+        <div className="flex justify-between items-start pt-8 pointer-events-auto">
+          <div>
+            <h2 className="text-white text-xl font-black tracking-tight drop-shadow-md">Scan Product</h2>
+            <p className="text-slate-300 text-[10px] font-bold uppercase tracking-widest mt-1 drop-shadow-sm">
+                Fit barcode inside the box
+            </p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="h-10 px-4 bg-black/40 hover:bg-black/60 backdrop-blur-md text-white text-xs font-bold rounded-xl border border-white/10 transition-colors"
+          >
+            Close
+          </button>
+        </div>
+
+        {/* Error Message */}
+        {permissionError && (
+            <div className="self-center bg-rose-500/90 text-white px-6 py-4 rounded-2xl max-w-xs text-center">
+                <p className="font-bold text-sm mb-1">Camera Access Denied</p>
+                <p className="text-xs opacity-90">Please enable camera permissions in your browser settings to scan products.</p>
+            </div>
+        )}
+
+        {/* Footer Instructions */}
+        <div className="text-center pb-8 pointer-events-auto">
+             <div className="inline-flex items-center gap-2 bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+                <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                <p className="text-white text-[10px] font-bold uppercase tracking-widest">
+                    Searching...
+                </p>
+            </div>
+        </div>
       </div>
     </div>
   );
