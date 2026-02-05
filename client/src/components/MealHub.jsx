@@ -5,7 +5,7 @@ import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestor
 import { Helmet } from "react-helmet-async"; 
 import { motion, AnimatePresence } from 'framer-motion';
 // Ensure this service is created as per previous steps
-import { searchRestaurantMenu } from '../services/RestaurantService';
+import { searchRestaurantMenu } from '../Services/RestaurantService';
 
 // --- ICONS ---
 import searchIcon from '../icons/search.svg';
@@ -15,7 +15,7 @@ import fireIcon from '../icons/fire.svg';
 import clockIcon from '../icons/clock.svg';     
 import refreshIcon from '../icons/rotate.svg';
 import starIcon from '../icons/sparkle.svg'; 
-import chefIcon from '../icons/chef-hat.svg';
+import chefIcon from '../icons/hat-chef.svg';
 import leafIcon from '../icons/leaf.svg'; 
 
 // --- CONFIG ---
@@ -502,7 +502,7 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
       {/* --- DYNAMIC RESTAURANT ROW --- */}
       <section className="mb-10 pl-6">
            <div className="flex justify-between items-center pr-6 mb-5">
-              <h3 className="text-lg font-black text-slate-900 tracking-tight">Trusted Kitchens</h3>
+              <h3 className="text-lg font-black text-slate-900 tracking-tight">Popular Restaurants</h3>
               <div className="flex items-center gap-1 opacity-50">
                   <ColoredIcon src={chefIcon} colorClass="bg-slate-400" sizeClass="w-3 h-3" />
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Verified Menus</span>

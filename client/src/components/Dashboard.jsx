@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { db } from '../firebase';
+// Added 'orderBy' and 'startAt/endAt' logic via where clauses for search
 import { collection, query, limit, where, getDocs, doc, getDoc, setDoc, updateDoc, arrayUnion } from "firebase/firestore";
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 import { PlateScanner } from './PlateScanner'; 
-// Ensure this import is correct
-import { searchRestaurantMenu } from '../services/RestaurantService';
+import { searchRestaurantMenu } from '../Services/RestaurantService';
 
 // --- ICON IMPORTS ---
 import fireIcon from '../icons/fire.svg';
@@ -39,8 +39,8 @@ const ICONS = {
     history: historyIcon
 };
 
-const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg';
-const USDA_API_KEY = '47ccOoSTZvhVDw3YpNh4nGCwSbLs98XOJufWOcY7';
+const LOGO_DEV_PUBLIC_KEY = import.meta.env.VITE_LOGO_DEV_KEY;
+const USDA_API_KEY = import.meta.env.VITE_USDA_API_KEY;
 
 // --- HELPERS ---
 const getVisualReference = (grams, name = "") => {
@@ -55,7 +55,7 @@ const getVisualReference = (grams, name = "") => {
 };
 
 const getLogoUrl = (brand) => {
-    if (!brand || brand === 'Generic' || brand === 'Foundation') return 'https://cdn-icons-png.flaticon.com/512/706/706164.png';
+    if (!brand || brand === 'Generic' || brand === 'Foundation' || brand === 'Local Database') return 'https://cdn-icons-png.flaticon.com/512/706/706164.png';
     const domain = brand.toLowerCase().split(' ')[0].replace(/[^a-z0-9]/g, '') + '.com';
     return `https://img.logo.dev/${domain}?token=${LOGO_DEV_PUBLIC_KEY}&size=100&format=png`;
 };
@@ -409,10 +409,15 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchQuery, setSearchQuer
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
                                                 <h4 className="font-bold text-slate-900 text-sm leading-tight">{res.name}</h4>
-                                                {/* VISUAL BADGE FOR VERIFIED MENU ITEMS */}
+                                                {/* VISUAL BADGES */}
                                                 {res.isRestaurant && (
                                                     <span className="bg-emerald-100 text-emerald-800 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest border border-emerald-200">
-                                                        Verified Menu
+                                                        Menu
+                                                    </span>
+                                                )}
+                                                {res.isLocal && (
+                                                    <span className="bg-blue-100 text-blue-800 text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest border border-blue-200">
+                                                        Local
                                                     </span>
                                                 )}
                                             </div>
@@ -557,7 +562,25 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
   const handleProductSelect = async (product) => {
       setSelectedProduct({ ...product, fullName: product.name, coreMetrics: { calories: { amount: 0 } } }); 
       
-      // CASE A: Restaurant Item
+      // CASE A: Local Database Item
+      if (product.isLocal) {
+           setSelectedProduct(prev => ({
+              ...prev,
+              servingLabel: "1 serving",
+              householdReference: product.details.portion_unit || "serving",
+              coreMetrics: {
+                  calories: { amount: product.details.calories || 0 },
+                  protein: { amount: product.details.protein || 0 },
+                  fat: { amount: product.details.fat || 0 },
+                  carbs: { amount: product.details.carbs || 0 },
+                  sugar: { amount: product.details.sugar || 0 }, 
+                  sodium: { amount: product.details.sodium || 0 }
+              }
+           }));
+           return;
+      }
+
+      // CASE B: Restaurant Item
       if (product.isRestaurant && product.details.macros) {
           const m = product.details.macros; // Safe access
           setSelectedProduct(prev => ({
@@ -576,7 +599,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
           return;
       }
 
-      // CASE B: USDA Item (Existing logic)
+      // CASE C: USDA Item (Existing logic)
       try {
         const response = await fetch(`https://api.nal.usda.gov/fdc/v1/food/${product.fdcId}?api_key=${USDA_API_KEY}`);
         const data = await response.json();
@@ -615,25 +638,51 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
     setTimeout(() => { setSelectedProduct(null); setTrackingSuccess(false); setPortionSize(1.0); setIsSearching(false); }, 1500);
   };
 
-  // --- UPDATED: SEARCH LOGIC (HYBRID) ---
+  // --- UPDATED: HYBRID SEARCH LOGIC ---
   useEffect(() => {
     if (searchQuery.length < 3) { setSuggestions([]); return; }
     
     const timeoutId = setTimeout(async () => {
         setIsApiLoading(true);
         try {
-            // Run BOTH searches in parallel
-            const [usdaRes, restaurantRes] = await Promise.all([
-                // A. USDA Search
-                fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(searchQuery)}&pageSize=8&dataType=Branded,Foundation`).then(r => r.json()),
+            // NOTE: Check if your collection is 'foods' or 'groceries' in Firebase
+            // Using 'foods' based on your backend routes.
+            const localQuery = query(
+                collection(db, "foods"), 
+                where("name", ">=", searchQuery),
+                where("name", "<=", searchQuery + '\uf8ff'),
+                limit(10)
+            );
+
+            // Run requests in parallel so one failure doesn't block the others
+            const [localSnapshot, usdaRes, restaurantRes] = await Promise.all([
+                getDocs(localQuery).catch(() => ({ docs: [] })), // Local DB Safe Fallback
                 
-                // B. Restaurant Service
+                fetch(`https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${USDA_API_KEY}&query=${encodeURIComponent(searchQuery)}&pageSize=8&dataType=Branded,Foundation`)
+                  .then(r => r.json())
+                  .catch(() => ({})), // USDA Safe Fallback
+                
                 searchRestaurantMenu(searchQuery)
+                  .catch(() => ({ items: [] })) // Restaurant Safe Fallback
             ]);
 
             const newSuggestions = [];
 
-            // 1. PUSH RESTAURANT ITEMS FIRST (If any)
+            // 1. ADD LOCAL DB RESULTS
+            localSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                newSuggestions.push({
+                    id: doc.id,
+                    fdcId: `local-${doc.id}`,
+                    name: data.name,
+                    brand: data.brand || 'Local Database',
+                    logo: getLogoUrl(data.brand),
+                    details: data,
+                    isLocal: true
+                });
+            });
+
+            // 2. ADD RESTAURANT ITEMS (If any)
             if (restaurantRes.items && restaurantRes.items.length > 0) {
                 restaurantRes.items.forEach(item => {
                     newSuggestions.push({
@@ -648,7 +697,7 @@ const Dashboard = ({ profile, setIsSearching, isSearching, deferredPrompt }) => 
                 });
             }
 
-            // 2. PUSH USDA ITEMS SECOND
+            // 3. ADD USDA ITEMS
             if (usdaRes.foods) {
                 usdaRes.foods.forEach(f => {
                     newSuggestions.push({
