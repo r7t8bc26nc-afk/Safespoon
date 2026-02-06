@@ -17,9 +17,9 @@ import refreshIcon from '../icons/rotate.svg';
 import starIcon from '../icons/sparkle.svg'; 
 import chefIcon from '../icons/hat-chef.svg';
 import leafIcon from '../icons/leaf.svg';
-import plusIcon from '../icons/plus.svg'; 
+import plusIcon from '../icons/plus-square.svg'; 
 import historyIcon from '../icons/rotate.svg'; // Reuse rotate for history or import a specific one
-import arrowRightIcon from '../icons/arrow-right.svg'; // You might need to add this or use a generic one
+import arrowRightIcon from '../icons/angle-right.svg'; // You might need to add this or use a generic one
 
 // Category Icons
 import eggIcon from '../icons/mug-hot.svg'; 
