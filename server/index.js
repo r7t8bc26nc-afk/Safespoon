@@ -1,7 +1,9 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
-require('dotenv').config();
+const OAuth = require('oauth-1.0a');
+const crypto = require('crypto');
 const serviceAccount = require('./serviceAccountKey.json');
 
 // Initialize Firebase Admin
@@ -78,7 +80,68 @@ app.delete('/api/log/:logId', async (req, res) => {
   }
 });
 
+// --- NEW FATSECRET OAUTH 1.0 PROXY (Bypasses IP Whitelist) ---
+app.get('/api/food-search', async (req, res) => {
+  try {
+    const query = req.query.search_expression;
+    if (!query) return res.status(400).json({ error: "Missing search term" });
+
+    // 1. Initialize OAuth 1.0 Helper
+    const oauth = OAuth({
+      consumer: {
+        key: process.env.FATSECRET_CLIENT_ID,
+        secret: process.env.FATSECRET_CLIENT_SECRET,
+      },
+      signature_method: 'HMAC-SHA1',
+      hash_function(base_string, key) {
+        return crypto.createHmac('sha1', key).update(base_string).digest('base64');
+      },
+    });
+
+    // 2. Define the Request Data (FatSecret REST API)
+    const request_data = {
+      url: 'https://platform.fatsecret.com/rest/server.api',
+      method: 'POST',
+      data: {
+        method: 'foods.search',
+        search_expression: query,
+        format: 'json',
+        // Optional: 'region': 'US', 
+      },
+    };
+
+    // 3. Sign the Request
+    const authorization = oauth.authorize(request_data);
+
+    // FatSecret Specific: Merge signature params into the body
+    const params = new URLSearchParams({
+      ...request_data.data,
+      ...authorization 
+    });
+
+    // 4. Send Request
+    const response = await fetch(request_data.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params
+    });
+
+    const data = await response.json();
+    
+    if (data.error) {
+      console.error("FatSecret Proxy Error:", data.error);
+      return res.status(400).json(data);
+    }
+
+    res.json(data);
+
+  } catch (error) {
+    console.error('Server Search Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 const PORT = 5001;
 app.listen(PORT, () => {
   console.log(`🔥 Server running on port ${PORT} (Firestore Connected)`);
-});
+});r
