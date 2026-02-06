@@ -1,14 +1,9 @@
 // client/src/services/FoodService.js
 
-// ---------------------------------------------------------------------------
-// AUTOMATIC URL SWITCHING
-// ---------------------------------------------------------------------------
-// If you are running on localhost, use port 5001.
-// If you are live, use your specific Render URL.
-const API_BASE_URL = window.location.hostname === 'localhost'
-  ? 'http://localhost:5001' 
-  : 'https://safespoon-cd82.onrender.com'; // <--- Your fixed Render URL
+// FORCE LIVE SERVER (Fixes mobile access)
+const API_BASE_URL = 'https://safespoon-cd82.onrender.com'; 
 
+// ... keep the rest of the file exactly the same ...
 /**
  * Searches for food/restaurants via your backend proxy.
  */
