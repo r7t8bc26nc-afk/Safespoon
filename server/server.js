@@ -12,7 +12,6 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const PORT = process.env.PORT || 5001;
 
 // --- SECURE KEY LOADING ---
-// checking process.env instead of hardcoded strings
 const FATSECRET_KEY = process.env.FATSECRET_CLIENT_ID;
 const FATSECRET_SECRET = process.env.FATSECRET_CLIENT_SECRET;
 
@@ -21,13 +20,13 @@ app.use(cors());
 app.use(express.json());
 
 // --- FIREBASE INIT ---
-// We check if the file exists to avoid crashing in environments where it might be injected differently
+// We check if the file exists to avoid crashing if it's missing (Render Secret File handles this)
 let serviceAccount;
 try {
+  // If running locally or if Render mounted the secret file correctly
   serviceAccount = require('./serviceAccountKey.json');
 } catch (e) {
-  // If running on Render/Cloud without the file, we might depend on env vars (optional advanced setup)
-  console.log("⚠️ serviceAccountKey.json not found. Ensure Firebase env vars are set if needed.");
+  console.log("⚠️ serviceAccountKey.json not found. Ensure Firebase is configured.");
 }
 
 if (serviceAccount && !admin.apps.length) {
@@ -35,9 +34,11 @@ if (serviceAccount && !admin.apps.length) {
     credential: admin.credential.cert(serviceAccount)
   });
 }
+const db = admin.firestore();
 
 // --- ROUTES ---
 
+// 1. FATSECRET PROXY
 app.get('/api/food-search', async (req, res) => {
   try {
     const query = String(req.query.search_expression || "").trim();
@@ -85,93 +86,63 @@ app.get('/api/food-search', async (req, res) => {
   }
 });
 
-// ... (Keep your existing Firebase routes for /api/foods and /api/log here) ...
-// (Copy them from your previous file, they are safe as they don't contain keys)
-
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
-
-// --- FIREBASE INIT ---
-// Make sure this file exists in the same folder!
-const serviceAccount = require('./serviceAccountKey.json');
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount)
-  });
-}
-const db = admin.firestore();
-
-// --- PROXY ROUTE ---
-app.get('/api/food-search', async (req, res) => {
+// 2. GET ALL FOODS
+app.get('/api/foods', async (req, res) => {
   try {
-    const query = String(req.query.search_expression || "").trim();
-    if (!query) return res.status(400).json({ error: "Missing search term" });
-
-    // Initialize OAuth
-    const oauth = OAuth({
-      consumer: { key: FATSECRET_KEY, secret: FATSECRET_SECRET },
-      signature_method: 'HMAC-SHA1',
-      hash_function(base_string, key) {
-        return crypto.createHmac('sha1', key).update(base_string).digest('base64');
-      },
-    });
-
-    const request_data = {
-      url: 'https://platform.fatsecret.com/rest/server.api',
-      method: 'POST',
-      data: {
-        method: 'foods.search',
-        search_expression: query,
-        format: 'json',
-      },
-    };
-
-    // Sign request
-    const authorization = oauth.authorize(request_data);
-    
-    // Combine data + auth signature into the body
-    const params = new URLSearchParams({ ...request_data.data, ...authorization });
-
-    console.log(`🔎 Searching: "${query}"`);
-
-    const response = await fetch(request_data.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString() 
-    });
-
-    const data = await response.json();
-
-    if (data.error) {
-        console.error("❌ API Error:", data.error.message);
-        return res.status(400).json(data);
-    }
-
-    res.json(data);
-
-  } catch (error) {
-    console.error('❌ Server Exception:', error.message);
-    res.status(500).json({ error: error.message });
+    const snapshot = await db.collection('foods').get();
+    const foods = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    res.json(foods);
+  } catch (err) {
+    console.error("Error fetching foods:", err);
+    res.status(500).send("Server Error");
   }
 });
 
-// --- FIREBASE ROUTES (Keep these so the app doesn't break) ---
-app.get('/api/foods', async (req, res) => {
-    const s = await db.collection('foods').get();
-    res.json(s.docs.map(d => ({id:d.id, ...d.data()})));
-});
+// 3. GET USER LOG
 app.get('/api/log/:userId', async (req, res) => {
+  try {
     const { userId } = req.params;
     const today = new Date().toISOString().split('T')[0];
-    const s = await db.collection('logs').where('userId','==',userId).where('date','==',today).get();
-    res.json(s.docs.map(d => ({log_id:d.id, ...d.data()})));
+    const snapshot = await db.collection('logs')
+      .where('userId', '==', userId)
+      .where('date', '==', today)
+      .get();
+    const logItems = snapshot.docs.map(doc => ({ log_id: doc.id, ...doc.data() }));
+    res.json(logItems);
+  } catch (err) {
+    console.error("Error fetching log:", err);
+    res.status(500).send("Server Error");
+  }
 });
+
+// 4. ADD TO LOG
 app.post('/api/log', async (req, res) => {
-    const { userId, foodId, ...rest } = req.body;
-    const d = { userId, foodId, date: new Date().toISOString().split('T')[0], timestamp: admin.firestore.FieldValue.serverTimestamp(), ...rest };
-    const r = await db.collection('logs').add(d);
-    res.json({success:true, logId:r.id});
+  try {
+    const { userId, foodId, ...foodData } = req.body;
+    const newLogItem = {
+      userId,
+      foodId,
+      date: new Date().toISOString().split('T')[0],
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      ...foodData
+    };
+    const docRef = await db.collection('logs').add(newLogItem);
+    res.json({ success: true, logId: docRef.id });
+  } catch (err) {
+    console.error("Error adding to log:", err);
+    res.status(500).send("Server Error");
+  }
 });
+
+// 5. DELETE FROM LOG
 app.delete('/api/log/:logId', async (req, res) => {
+  try {
     await db.collection('logs').doc(req.params.logId).delete();
-    res.json({success:true});
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Error deleting log:", err);
+    res.status(500).send("Server Error");
+  }
 });
+
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
