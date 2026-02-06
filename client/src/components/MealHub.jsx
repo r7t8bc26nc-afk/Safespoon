@@ -4,7 +4,7 @@ import { db } from '../firebase';
 import { collection, query, orderBy, limit, onSnapshot, updateDoc, doc, arrayUnion } from "firebase/firestore";
 import { Helmet } from "react-helmet-async"; 
 import { motion, AnimatePresence } from 'framer-motion';
-// Service for FatSecret (Restaurants)
+// Ensure this service path is correct
 import { searchRestaurantMenu } from '../services/FoodService';
 
 // --- ICONS ---
@@ -18,8 +18,6 @@ import starIcon from '../icons/sparkle.svg';
 import chefIcon from '../icons/hat-chef.svg';
 import leafIcon from '../icons/leaf.svg';
 import plusIcon from '../icons/plus-square.svg'; 
-import historyIcon from '../icons/rotate.svg'; // Reuse rotate for history or import a specific one
-import arrowRightIcon from '../icons/angle-right.svg'; // You might need to add this or use a generic one
 
 // Category Icons
 import eggIcon from '../icons/mug-hot.svg'; 
@@ -30,8 +28,8 @@ import coffeeIcon from '../icons/glass.svg';
 import cakeIcon from '../icons/candy.svg'; 
 
 // --- CONFIG ---
-const CACHE_KEY = 'safespoon_meal_hub_v1';
-const HISTORY_KEY = 'safespoon_search_history';
+const CACHE_KEY = 'safespoon_meal_hub_v2'; // Bumped version to force refresh
+const CACHE_DURATION = 1000 * 60 * 60 * 4; 
 const LOGO_DEV_PUBLIC_KEY = 'pk_AnZTwqMTQ1ia9Btg_pILzg'; 
 
 // --- DYNAMIC DATA ---
@@ -187,7 +185,7 @@ const RecipeRow = ({ title, recipes, loading, onRefresh, navigate }) => (
   </section>
 );
 
-// --- SEARCH OVERLAY (UPDATED) ---
+// --- SEARCH OVERLAY ---
 const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm, results, isApiLoading, onSelect, history, onClearHistory }) => {
     return (
         <AnimatePresence>
@@ -205,7 +203,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                     </div>
                     
                     <div className="flex-1 overflow-y-auto px-5 py-4">
-                        {/* SEARCH HISTORY & EMPTY STATE */}
                         {!searchTerm && (
                             <div className="mb-8">
                                 <div className="flex justify-between items-center mb-3 pl-1">
@@ -226,7 +223,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                             </div>
                         )}
 
-                        {/* RESULTS: RESTAURANTS (FATSECRET) */}
                         {results.restaurants.length > 0 && (
                              <div className="mb-6">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 pl-1">Restaurants</h3>
@@ -246,7 +242,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                             </div>
                         )}
 
-                        {/* RESULTS: RECIPES (THEMEALDB) */}
                         {(results.recipes.length > 0 || isApiLoading) && (
                             <div className="mb-6">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 pl-1">Recipes</h3>
@@ -268,7 +263,6 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
                             </div>
                         )}
 
-                         {/* RESULTS: LOCAL (PANTRY) */}
                          {results.groceries.length > 0 && (
                             <div className="mb-6">
                                 <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-3 pl-1">Pantry</h3>
@@ -289,7 +283,7 @@ const SearchOverlay = ({ isSearching, setIsSearching, searchTerm, setSearchTerm,
     );
 };
 
-// --- MEAL SELECTION MODAL (INTAKE) - NO EMOJIS ---
+// --- MEAL SELECTION MODAL ---
 const MealSelectionModal = ({ item, onClose, onConfirm, userProfile }) => {
     if (!item) return null;
     const { isSafe, issues } = checkSafety(item, userProfile);
@@ -305,7 +299,6 @@ const MealSelectionModal = ({ item, onClose, onConfirm, userProfile }) => {
             >
                 <div className="text-center mb-6">
                     <div className="w-16 h-16 bg-slate-50 rounded-2xl mx-auto mb-4 flex items-center justify-center shadow-inner border border-slate-100">
-                         {/* REPLACED EMOJI WITH ICON */}
                          <ColoredIcon src={chefIcon} colorClass="bg-slate-900" sizeClass="w-8 h-8" />
                     </div>
                     <h3 className="text-xl font-black text-slate-900 leading-tight mb-1">Add to Intake</h3>
@@ -364,7 +357,6 @@ const RestaurantMenuModal = ({ restaurantName, items, onClose, userProfile, onIt
 
     return (
         <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed inset-0 z-[12000] bg-white flex flex-col font-['Switzer']">
-            {/* Header */}
             <div className="px-6 pt-14 pb-2 border-b border-slate-50 bg-white/95 backdrop-blur-sm z-10 sticky top-0 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                     <button onClick={onClose} className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center text-slate-900 font-bold active:bg-slate-200 transition-colors">✕</button>
@@ -375,20 +367,10 @@ const RestaurantMenuModal = ({ restaurantName, items, onClose, userProfile, onIt
                                 <img src={logoUrl} alt="logo" className="w-full h-full object-contain bg-white" />
                             </div>
                          </div>
-                        {userProfile?.dietaryPreferences && userProfile.dietaryPreferences.length > 0 ? (
-                            <div className="flex items-center justify-end gap-1">
-                                <ColoredIcon src={leafIcon} colorClass="text-emerald-500" sizeClass="w-3 h-3" />
-                                <span className="text-xs font-semibold text-emerald-600">
-                                    Safe for {userProfile.dietaryPreferences[0]}
-                                </span>
-                            </div>
-                        ) : (
-                             <p className="text-xs font-semibold text-slate-400">{safeItems.length} items found</p>
-                        )}
+                         <p className="text-xs font-semibold text-slate-400">{safeItems.length} items found</p>
                     </div>
                 </div>
                 
-                {/* Scrollable Tabs */}
                 <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2">
                     {menuTabs.map(tab => (
                         <button
@@ -407,7 +389,6 @@ const RestaurantMenuModal = ({ restaurantName, items, onClose, userProfile, onIt
                 </div>
             </div>
 
-            {/* Menu List */}
             <div className="flex-1 overflow-y-auto px-6 py-6 bg-slate-50">
                 {(!menuTabs || menuTabs.length === 0) ? (
                     <div className="text-center py-20 opacity-40">
@@ -434,11 +415,9 @@ const RestaurantMenuModal = ({ restaurantName, items, onClose, userProfile, onIt
                                             <ColoredIcon src={plusIcon} colorClass="bg-white" sizeClass="w-4 h-4" />
                                         </button>
                                     </div>
-                                    
                                     <p className="text-xs text-slate-500 font-medium leading-relaxed line-clamp-2 w-5/6 z-10">
                                         {item.description ? item.description.replace(/\|/g, ' • ') : 'No description available.'}
                                     </p>
-
                                     {(item.macros?.protein > 0 || item.macros?.carbs > 0) && (
                                         <div className="grid grid-cols-3 gap-2 mt-2 pt-3 border-t border-slate-50 opacity-80 group-hover:opacity-100 transition-opacity z-10">
                                             <div className="text-center"><span className="block text-xs text-slate-400 font-semibold mb-0.5">Pro</span><span className="font-bold text-slate-900">{item.macros?.protein || 0}g</span></div>
@@ -467,16 +446,15 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
   const [searchResults, setSearchResults] = useState({ recipes: [], groceries: [], restaurants: [] });
   const [isSearchingAPI, setIsSearchingAPI] = useState(false);
   
-  // Search History State
   const [searchHistory, setSearchHistory] = useState(() => {
-      try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { return []; }
+      try { return JSON.parse(localStorage.getItem('safespoon_search_history') || '[]'); } catch { return []; }
   });
 
   const addToHistory = (term) => {
       if (!term) return;
-      const updated = [term, ...searchHistory.filter(t => t !== term)].slice(0, 8); // Keep top 8
+      const updated = [term, ...searchHistory.filter(t => t !== term)].slice(0, 8); 
       setSearchHistory(updated);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      localStorage.setItem('safespoon_search_history', JSON.stringify(updated));
   };
 
   useEffect(() => {
@@ -486,51 +464,34 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
     });
   }, []);
 
-  // --- RESTORED & UPGRADED SEARCH EFFECT (INCLUDES FATSECRET) ---
+  // --- FAULT-TOLERANT SEARCH EFFECT ---
   useEffect(() => {
     if (!searchTerm.trim()) return;
     const delay = setTimeout(async () => {
         setIsSearchingAPI(true);
         const term = searchTerm.toLowerCase();
 
-        // 1. Local Filter
         const matchedGroceries = allGroceries.filter(item => item.name?.toLowerCase().includes(term));
         
-        let matchedRecipes = [];
-        let matchedRestaurants = [];
+        // Run requests independently to prevent one crash killing all
+        const recipePromise = fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${searchTerm}`)
+            .then(r => r.json())
+            .then(d => d.meals ? d.meals.map(m => ({ id: m.idMeal, name: m.strMeal, image: m.strMealThumb, calories: 450 })) : [])
+            .catch(() => []);
 
-        try {
-            // 2. Parallel API Calls (MealDB + FatSecret via Backend)
-            const [recipeRes, restaurantRes] = await Promise.all([
-                fetch(`https://www.themealdb.com/api/json/v1/1/search.php?s=${searchTerm}`),
-                searchRestaurantMenu(searchTerm) // Queries your backend -> FatSecret
-            ]);
+        const restaurantPromise = searchRestaurantMenu(searchTerm)
+            .then(r => r.items || [])
+            .catch(() => []);
 
-            const recipeData = await recipeRes.json();
-            
-            if (recipeData.meals) {
-                matchedRecipes = recipeData.meals.map(m => ({ 
-                    id: m.idMeal, 
-                    name: m.strMeal, 
-                    image: m.strMealThumb, 
-                    calories: 450 // Estimate as MealDB provides none
-                })).slice(0, 10);
-            }
+        const [recipes, restaurants] = await Promise.all([recipePromise, restaurantPromise]);
 
-            // 3. Process Restaurant Results
-            if (restaurantRes.items) {
-                matchedRestaurants = restaurantRes.items.slice(0, 8); // Limit to top 8
-            }
-
-        } catch (e) { console.error("Search Error", e); }
-        
         setSearchResults({ 
-            recipes: matchedRecipes, 
+            recipes: recipes.slice(0, 10), 
             groceries: matchedGroceries, 
-            restaurants: matchedRestaurants // Now includes FatSecret data
+            restaurants: restaurants.slice(0, 8) 
         });
         setIsSearchingAPI(false);
-    }, 500); // 500ms debounce
+    }, 500);
     return () => clearTimeout(delay);
   }, [searchTerm, allGroceries]);
 
@@ -538,10 +499,10 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
   const getInitialState = (key, val) => {
       try { return JSON.parse(localStorage.getItem(CACHE_KEY))?.data?.[key] || val; } catch { return val; }
   };
-  const [featuredRecipes] = useState(() => getInitialState('featured', []));
-  const [breakfastRecipes] = useState(() => getInitialState('breakfast', []));
-  const [goalRecipes] = useState(() => getInitialState('goalRecipes', []));
-  const [isRefreshing] = useState(false); 
+  const [featuredRecipes, setFeaturedRecipes] = useState(() => getInitialState('featured', []));
+  const [breakfastRecipes, setBreakfastRecipes] = useState(() => getInitialState('breakfast', []));
+  const [goalRecipes, setGoalRecipes] = useState(() => getInitialState('goalRecipes', []));
+  const [isRefreshing, setIsRefreshing] = useState(false); 
 
   const handleRestaurantSelect = async (name) => {
       setSelectedRestaurantName(name); 
@@ -574,24 +535,54 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
       }
   };
 
-  const handleSearchResultClick = (item, type) => {
-      addToHistory(searchTerm); // Save to history on click
-      if (type === 'recipe') {
-          navigate(`/recipe/${item.id}`);
-      } else if (type === 'restaurant') {
-          // If searching generic food (e.g., "Burger"), show it in intake modal
-          // If searching a place (e.g., "Starbucks"), likely want to see menu (handled if logic existed, for now treating as item)
-          setItemForIntake({ ...item, brand: item.brand || 'Restaurant' });
-      } else {
-          setItemForIntake(item);
-      }
+  // --- API FETCH HELPERS ---
+  const fetchRecipesByUrl = async (url, count = 5, isDrink = false) => {
+      try {
+        const res = await fetch(url);
+        const data = await res.json();
+        const items = isDrink ? data.drinks : data.meals;
+        const list = items || [];
+        const shuffled = list.sort(() => 0.5 - Math.random()).slice(0, count);
+        return shuffled.map(m => ({
+            id: isDrink ? m.idDrink : m.idMeal,
+            name: isDrink ? m.strDrink : m.strMeal,
+            image: isDrink ? m.strDrinkThumb : m.strMealThumb,
+            time: isDrink ? '5 min' : `${Math.floor(Math.random() * (45 - 15) + 15)} min`,
+            calories: Math.floor(Math.random() * (isDrink ? (250 - 80) + 80 : (700 - 300) + 300))
+        }));
+      } catch (e) { return []; }
   };
+
+  // --- IMPROVED DATA LOADING (Parallel but Safe) ---
+  const loadAllSections = async (forceRefresh = false) => {
+    if (!forceRefresh) {
+        const cached = localStorage.getItem(CACHE_KEY);
+        if (cached && (Date.now() - JSON.parse(cached).timestamp) < CACHE_DURATION) return;
+    }
+
+    setIsRefreshing(true);
+    
+    // FETCH INDEPENDENTLY so one failure doesn't kill all
+    // REPLACED: "Random" loop (prone to 429 errors) with a stable "American" category shuffle
+    const p1 = fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?a=American', 5).then(setFeaturedRecipes).catch(e=>console.log(e));
+    const p2 = fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Breakfast', 5).then(setBreakfastRecipes).catch(e=>console.log(e));
+    const p3 = fetchRecipesByUrl('https://www.themealdb.com/api/json/v1/1/filter.php?c=Chicken', 5).then(setGoalRecipes).catch(e=>console.log(e));
+    
+    await Promise.allSettled([p1, p2, p3]);
+
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+        timestamp: Date.now(),
+        data: { featured: featuredRecipes, breakfast: breakfastRecipes, goalRecipes: goalRecipes }
+    }));
+    setIsRefreshing(false);
+  };
+
+  useEffect(() => { loadAllSections(); }, []);
 
   return (
     <main className="w-full pb-6 font-['Switzer'] bg-gray-50 min-h-screen text-slate-900">
       <Helmet><title>Meal Hub</title></Helmet>
 
-      {/* --- RESTAURANT MODAL (BROWSING) --- */}
       <AnimatePresence>
         {selectedRestaurantName && (
             <RestaurantMenuModal 
@@ -604,7 +595,6 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
         )}
       </AnimatePresence>
 
-      {/* --- ADD TO INTAKE MODAL --- */}
       <AnimatePresence>
         {itemForIntake && (
             <MealSelectionModal 
@@ -620,9 +610,9 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
         isSearching={isSearching} setIsSearching={setIsSearching}
         searchTerm={searchTerm} setSearchTerm={setSearchTerm}
         results={searchResults} isApiLoading={isSearchingAPI}
-        onSelect={handleSearchResultClick}
+        onSelect={(item, type) => type === 'recipe' ? navigate(`/recipe/${item.id}`) : setItemForIntake(item)}
         history={searchHistory}
-        onClearHistory={() => { setSearchHistory([]); localStorage.removeItem(HISTORY_KEY); }}
+        onClearHistory={() => { setSearchHistory([]); localStorage.removeItem('safespoon_search_history'); }}
       />
 
       <header className="pt-8 pb-2 px-6">
@@ -639,7 +629,6 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
           </button>
       </div>
 
-      {/* --- POLISHED RESTAURANT ROW --- */}
       <section className="mb-10 pl-6">
            <div className="flex justify-between items-end pr-6 mb-5">
               <h3 className="text-lg font-black text-slate-900 tracking-tight">Popular Restaurants</h3>
@@ -666,8 +655,7 @@ export const MealHub = ({ userProfile, onOpenMenu }) => {
           </div>
       </section>
 
-      {/* FIXED: RECIPE CLICKS NAVIGATE */}
-      <RecipeRow title="Chef's Selections" recipes={featuredRecipes} loading={isRefreshing} navigate={navigate} onRefresh={() => {}} />
+      <RecipeRow title="Chef's Selections" recipes={featuredRecipes} loading={isRefreshing} navigate={navigate} onRefresh={() => loadAllSections(true)} />
       <RecipeRow title="Morning Momentum" recipes={breakfastRecipes} loading={isRefreshing} navigate={navigate} />
       <RecipeRow title="Your Goals" recipes={goalRecipes} loading={isRefreshing} navigate={navigate} />
 
