@@ -1,24 +1,94 @@
+const path = require('path');
+require('dotenv').config({ path: path.resolve(__dirname, './.env') });
+
 const express = require('express');
 const cors = require('cors');
 const admin = require('firebase-admin');
 const OAuth = require('oauth-1.0a');
 const crypto = require('crypto');
-// Ensure node-fetch is available
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+
+// --- CONFIGURATION ---
+const PORT = process.env.PORT || 5001;
+
+// --- SECURE KEY LOADING ---
+// checking process.env instead of hardcoded strings
+const FATSECRET_KEY = process.env.FATSECRET_CLIENT_ID;
+const FATSECRET_SECRET = process.env.FATSECRET_CLIENT_SECRET;
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// --- HARDCODED KEYS (To bypass .env issues) ---
-// Transcribed directly from your screenshot
-const FATSECRET_KEY = '720ff6ec882f4d0fa89c1b28fa2d9685';
-const FATSECRET_SECRET = 'ae20febb460142649756aca2889265a3';
+// --- FIREBASE INIT ---
+// We check if the file exists to avoid crashing in environments where it might be injected differently
+let serviceAccount;
+try {
+  serviceAccount = require('./serviceAccountKey.json');
+} catch (e) {
+  // If running on Render/Cloud without the file, we might depend on env vars (optional advanced setup)
+  console.log("⚠️ serviceAccountKey.json not found. Ensure Firebase env vars are set if needed.");
+}
 
-console.log("---------------------------------------------------");
-console.log("🔹 SERVER STARTING (HARDCODED MODE)");
-console.log(`🔹 Key Check: ${FATSECRET_KEY.substring(0, 5)}... (Length: ${FATSECRET_KEY.length})`);
-console.log("---------------------------------------------------");
+if (serviceAccount && !admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+  });
+}
+
+// --- ROUTES ---
+
+app.get('/api/food-search', async (req, res) => {
+  try {
+    const query = String(req.query.search_expression || "").trim();
+    if (!query) return res.status(400).json({ error: "Missing search term" });
+
+    if (!FATSECRET_KEY || !FATSECRET_SECRET) {
+        console.error("❌ Server Error: Missing API Keys");
+        return res.status(500).json({ error: "Server Misconfiguration" });
+    }
+
+    const oauth = OAuth({
+      consumer: { key: FATSECRET_KEY, secret: FATSECRET_SECRET },
+      signature_method: 'HMAC-SHA1',
+      hash_function(base_string, key) {
+        return crypto.createHmac('sha1', key).update(base_string).digest('base64');
+      },
+    });
+
+    const request_data = {
+      url: 'https://platform.fatsecret.com/rest/server.api',
+      method: 'POST',
+      data: {
+        method: 'foods.search',
+        search_expression: query,
+        format: 'json',
+      },
+    };
+
+    const authorization = oauth.authorize(request_data);
+    const params = new URLSearchParams({ ...request_data.data, ...authorization });
+
+    const response = await fetch(request_data.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString() 
+    });
+
+    if (!response.ok) throw new Error(await response.text());
+    const data = await response.json();
+    res.json(data);
+
+  } catch (error) {
+    console.error('Proxy Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ... (Keep your existing Firebase routes for /api/foods and /api/log here) ...
+// (Copy them from your previous file, they are safe as they don't contain keys)
+
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
 
 // --- FIREBASE INIT ---
 // Make sure this file exists in the same folder!
@@ -105,6 +175,3 @@ app.delete('/api/log/:logId', async (req, res) => {
     await db.collection('logs').doc(req.params.logId).delete();
     res.json({success:true});
 });
-
-const PORT = 5001;
-app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
