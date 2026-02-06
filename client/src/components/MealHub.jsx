@@ -5,7 +5,7 @@ import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestor
 import { Helmet } from "react-helmet-async"; 
 import { motion, AnimatePresence } from 'framer-motion';
 // Ensure this service is created as per previous steps
-import { searchRestaurantMenu } from '../services/RestaurantService';
+import { searchRestaurantMenu } from '../services/FoodService';
 
 // --- ICONS ---
 import searchIcon from '../icons/search.svg';

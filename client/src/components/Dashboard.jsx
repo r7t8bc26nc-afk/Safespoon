@@ -6,7 +6,7 @@ import { collection, query, limit, where, getDocs, doc, getDoc, setDoc, updateDo
 import { motion, AnimatePresence } from 'framer-motion';
 import { Html5Qrcode } from 'html5-qrcode';
 import { PlateScanner } from './PlateScanner'; 
-import { searchRestaurantMenu } from '../services/RestaurantService';
+import { searchRestaurantMenu } from '../services/FoodService';
 
 // --- ICON IMPORTS ---
 import fireIcon from '../icons/fire.svg';
