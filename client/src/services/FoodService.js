@@ -1,19 +1,21 @@
 // client/src/services/FoodService.js
 
-// 1. Define where your backend server is running
-// (If you deploy to Vercel later, this URL will change)
-const API_BASE_URL = 'http://localhost:5001'; 
-'https://safespoon-cd82.onrender.com';
+// ---------------------------------------------------------------------------
+// AUTOMATIC URL SWITCHING
+// ---------------------------------------------------------------------------
+// If you are running on localhost, use port 5001.
+// If you are live, use your specific Render URL.
+const API_BASE_URL = window.location.hostname === 'localhost'
+  ? 'http://localhost:5001' 
+  : 'https://safespoon-cd82.onrender.com'; // <--- Your fixed Render URL
 
 /**
  * Searches for food/restaurants via your backend proxy.
- * This is the ONLY function your React components need to import.
  */
 export const searchRestaurantMenu = async (query) => {
   if (!query) return { items: [] };
 
   try {
-    // We fetch from YOUR local server, not FatSecret directly
     const response = await fetch(`${API_BASE_URL}/api/food-search?search_expression=${encodeURIComponent(query)}`);
 
     if (!response.ok) {
@@ -22,16 +24,13 @@ export const searchRestaurantMenu = async (query) => {
     }
 
     const data = await response.json();
- 
-
-    // ADD THIS LOG:
+    
+    // Debug Log: Check your browser console to see what FatSecret returns
     console.log("Raw API Response:", data); 
 
-    
-    // Standardize the FatSecret response for your App
-    // (Handles the XML-to-JSON quirks where single items aren't arrays)
     let rawItems = [];
     if (data.foods && data.foods.food) {
+        // Handle FatSecret XML-to-JSON quirk (single item vs array)
         rawItems = Array.isArray(data.foods.food) ? data.foods.food : [data.foods.food];
     }
 
@@ -42,7 +41,6 @@ export const searchRestaurantMenu = async (query) => {
         description: item.food_description, 
         type: item.food_type,
         isRestaurant: item.food_type === 'Brand',
-        // Optional: Parse macros from description string if needed
         macros: parseMacros(item.food_description) 
     }));
 
@@ -54,7 +52,7 @@ export const searchRestaurantMenu = async (query) => {
   }
 };
 
-// Helper to clean up the description string
+// Helper to clean up the FatSecret description string
 const parseMacros = (desc) => {
     if (!desc) return {};
     const macros = {};
