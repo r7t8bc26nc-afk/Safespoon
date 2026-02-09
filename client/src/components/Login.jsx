@@ -29,25 +29,17 @@ const LogoMark = ({ className }) => (
 );
 
 // 2. The Full Vertical Lockup (Icon + Text)
-const SafeSpoonLogo = () => (
-  <div className="flex flex-col items-start gap-2 pt-12 md:gap-4">
-    {/* DESIGN FIX: 
-       - Mobile: h-10 (40px) prevents the wide icon from blowing out the screen width.
-       - Desktop: h-16 (64px) is large enough to anchor the brand without looking cartoonish.
-    */}
-    <LogoMark className="h-10 md:h-16 w-auto text-emerald-600" />
-    
-    {/* TYPOGRAPHY FIX:
-       - Adjusted text sizes to visually balance with the new icon heights.
-    */}
-    <span className="font-['Host_Grotesk'] font-extrabold text-2xl md:text-4xl tracking-tight text-emerald-600 leading-none">
+const SafeSpoonLogo = ({ dark = false }) => (
+  <div className="flex items-center gap-3">
+    <LogoMark className={`h-10 md:h-12 w-auto ${dark ? 'text-black' : 'text-white'}`} />
+    <span className={`font-black text-2xl md:text-3xl tracking-tighter uppercase ${dark ? 'text-black' : 'text-white'} leading-none`}>
       Safespoon
     </span>
   </div>
 );
 
 const GoogleLogo = () => (
-  <svg className="w-5 h-5" viewBox="0 0 24 24">
+  <svg className="w-5 h-5 mr-3" viewBox="0 0 24 24">
     <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
     <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
     <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.26.81-.58z" fill="#FBBC05"/>
@@ -58,19 +50,21 @@ const GoogleLogo = () => (
 // --- FORM FIELD SUB-COMPONENT ---
 
 const InputField = ({ label, type, value, onChange, placeholder, children }) => (
-  <div className="group bg-slate-50 focus-within:bg-white border-2 border-transparent focus-within:border-slate-900 focus-within:ring-4 focus-within:ring-slate-100 rounded-2xl transition-all duration-200 relative">
-    <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 pt-3 mb-0 group-focus-within:text-slate-900 transition-colors">
+  <div className="relative mb-6">
+    <label className="block text-sm font-black text-black uppercase tracking-widest mb-2 border-2 border-black bg-[#FFD700] w-fit px-2 py-0.5 transform -rotate-1">
       {label}
     </label>
-    <input 
-      type={type} 
-      value={value}
-      onChange={onChange}
-      required 
-      className="w-full bg-transparent px-4 pb-3 pt-1 text-lg font-bold text-slate-900 outline-none placeholder:text-slate-300 font-['Switzer']" 
-      placeholder={placeholder}
-    />
-    {children}
+    <div className="relative">
+      <input 
+        type={type} 
+        value={value}
+        onChange={onChange}
+        required 
+        className="w-full bg-white border-4 border-black p-4 text-lg font-bold text-black placeholder:text-gray-400 outline-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:translate-x-[2px] focus:translate-y-[2px] focus:shadow-none transition-all" 
+        placeholder={placeholder}
+      />
+      {children}
+    </div>
   </div>
 );
 
@@ -90,22 +84,33 @@ const Login = ({ onLogin }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    
+    // Simple validation
     if (isSignup && password !== confirmPassword) {
         setError("Passwords do not match.");
         return;
     }
+    
     setLoading(true);
+    
+    // Simulate slight delay for UX if network is too fast (optional, but good for "processing" feel)
+    // await new Promise(resolve => setTimeout(resolve, 500)); 
+
     try {
-      if (isSignup) await createUserWithEmailAndPassword(auth, email, password);
-      else await signInWithEmailAndPassword(auth, email, password);
+      if (isSignup) {
+          await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+          await signInWithEmailAndPassword(auth, email, password);
+      }
       if (onLogin) onLogin(); 
     } catch (err) {
       const errorMap = {
         'auth/invalid-credential': "Incorrect email or password.",
         'auth/email-already-in-use': "Email already registered.",
-        'auth/weak-password': "Password must be at least 6 characters."
+        'auth/weak-password': "Password must be at least 6 characters.",
+        'auth/user-not-found': "No account found with this email."
       };
-      setError(errorMap[err.code] || "Authentication failed. Please try again.");
+      setError(errorMap[err.code] || "Authentication failed.");
     } finally {
       setLoading(false);
     }
@@ -115,126 +120,154 @@ const Login = ({ onLogin }) => {
     try {
       await signInWithPopup(auth, new GoogleAuthProvider());
       if (onLogin) onLogin();
-    } catch (err) { setError("Unable to connect with Google."); }
+    } catch (err) { 
+        setError("Unable to connect with Google."); 
+    }
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row font-['Switzer'] text-slate-900 bg-white overflow-hidden">
+    <div className="min-h-screen flex flex-col md:flex-row font-sans text-black bg-white overflow-hidden">
       <Helmet>
-        <title>{isSignup ? "Create Account | SafeSpoon" : "Sign In | SafeSpoon"}</title>
+        <title>{isSignup ? "Join Us | SafeSpoon" : "Access | SafeSpoon"}</title>
       </Helmet>
 
       {/* --- LEFT SIDE: BRANDING (DESKTOP) --- */}
-      <div className="hidden md:flex md:w-5/12 lg:w-1/2 bg-slate-50 relative flex-col justify-between p-16 overflow-hidden border-r border-slate-100">
+      <div className="hidden md:flex md:w-5/12 lg:w-1/2 bg-[#000000] relative flex-col justify-between p-12 lg:p-16 border-r-4 border-black">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(#ffffff 2px, transparent 2px)', backgroundSize: '30px 30px' }}></div>
+        
         <div className="relative z-20">
             <SafeSpoonLogo />
         </div>
+        
         <div className="relative z-20 max-w-lg">
-            <h2 className="text-5xl font-black leading-tight mb-6 tracking-tight">
-                Eat without<br/> 
-                <span className="text-emerald-600">hesitation</span>
+            <div className="inline-block bg-[#10B981] border-2 border-white px-4 py-2 mb-6 transform -rotate-2">
+                <span className="font-bold text-white uppercase tracking-widest">The Food Scanner</span>
+            </div>
+            <h2 className="text-6xl lg:text-7xl font-black leading-[0.9] mb-8 tracking-tighter text-white">
+                EAT<br/> 
+                WITHOUT<br/>
+                <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#10B981] to-[#FFD700]">FEAR.</span>
             </h2>
-            <p className="text-lg text-slate-500 leading-relaxed font-medium mb-10">
-                The most advanced food scanner for allergies, medical conditions, and lifestyle diets
+            <p className="text-xl text-gray-300 font-bold font-mono border-l-4 border-[#10B981] pl-6 py-2">
+                Advanced filtration for allergies, medical conditions, and lifestyle diets.
             </p>
         </div>
-        <div className="relative z-20 text-xs text-slate-400 font-bold uppercase tracking-widest">
-            © {new Date().getFullYear()} Safespoon Inc
+        
+        <div className="relative z-20 text-xs font-black uppercase tracking-widest text-white/50">
+            © {new Date().getFullYear()} Safespoon Inc. // All Rights Reserved
         </div>
       </div>
 
       {/* --- RIGHT SIDE: FORM --- */}
       <div className="flex-1 flex flex-col h-full relative overflow-y-auto bg-white">
         
-        {/* Mobile Header - Adjusted spacing */}
-        <div className="md:hidden pt-safe-top px-8 pb-4 flex justify-start items-center bg-white z-20 mt-10 mb-2">
-           <SafeSpoonLogo />
+        {/* Mobile Header */}
+        <div className="md:hidden p-6 border-b-4 border-black bg-white z-20 sticky top-0 flex justify-between items-center">
+           <SafeSpoonLogo dark={true} />
         </div>
 
         <div className="flex-1 flex flex-col justify-center px-6 md:px-12 lg:px-24 py-10 max-w-xl mx-auto w-full">
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+            <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="w-full">
                 
-                <div className="mb-8 text-left">
-                    <h1 className="text-3xl md:text-4xl font-bold text-slate-900 tracking-tight mb-0">
-                        {isSignup ? "Get started" : "Welcome back"}
+                <div className="mb-10 text-left border-l-8 border-black pl-6">
+                    <h1 className="text-4xl md:text-5xl font-black text-black tracking-tighter uppercase mb-2">
+                        {isSignup ? "Get Started" : "Welcome Back"}
                     </h1>
-                    <p className="text-slate-500 font-medium tracking-tight text-lg">
-                        {isSignup ? "Create your free account" : "Sign in to continue"}
+                    <p className="font-bold font-mono text-gray-500 uppercase tracking-tight">
+                        {isSignup ? "Enter your details to begin" : "Access your dashboard"}
                     </p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="space-y-4">
-                        <InputField 
-                          label="Email" 
-                          type="email" 
-                          value={email} 
-                          onChange={(e) => setEmail(e.target.value)} 
-                          placeholder="harveyspecter@email.com" 
-                        />
+                <form onSubmit={handleSubmit} className="space-y-2">
+                    <InputField 
+                        label="Email Address" 
+                        type="email" 
+                        value={email} 
+                        onChange={(e) => setEmail(e.target.value)} 
+                        placeholder="HARVEYSPECTER@EMAIL.COM" 
+                    />
 
-                        <InputField 
-                          label="Password" 
-                          type={showPassword ? "text" : "password"} 
-                          value={password} 
-                          onChange={(e) => setPassword(e.target.value)} 
-                          placeholder="••••••••"
+                    <InputField 
+                        label="Password" 
+                        type={showPassword ? "text" : "password"} 
+                        value={password} 
+                        onChange={(e) => setPassword(e.target.value)} 
+                        placeholder="••••••••"
+                    >
+                        <button 
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black uppercase tracking-widest bg-black text-white px-2 py-1 hover:bg-[#FFD700] hover:text-black transition-colors"
                         >
-                          <button 
-                              type="button"
-                              onClick={() => setShowPassword(!showPassword)}
-                              className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-slate-900 p-2"
-                          >
-                              {showPassword ? "Hide" : "Show"}
-                          </button>
-                        </InputField>
+                            {showPassword ? "Hide" : "Show"}
+                        </button>
+                    </InputField>
 
-                        <AnimatePresence>
-                            {isSignup && (
-                                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                                    <InputField 
-                                      label="Confirm Password" 
-                                      type="password" 
-                                      value={confirmPassword} 
-                                      onChange={(e) => setConfirmPassword(e.target.value)} 
-                                      placeholder="••••••••" 
-                                    />
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                    <AnimatePresence>
+                        {isSignup && (
+                            <motion.div 
+                                initial={{ height: 0, opacity: 0 }} 
+                                animate={{ height: 'auto', opacity: 1 }} 
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                            >
+                                <InputField 
+                                    label="Confirm Password" 
+                                    type="password" 
+                                    value={confirmPassword} 
+                                    onChange={(e) => setConfirmPassword(e.target.value)} 
+                                    placeholder="••••••••" 
+                                />
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
 
                     {error && (
-                        <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 flex items-start gap-3">
-                            <svg className="w-5 h-5 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                            <p className="text-xs font-bold text-rose-600 pt-0.5">{error}</p>
-                        </div>
+                        <motion.div initial={{ scale: 0.9 }} animate={{ scale: 1 }} className="p-4 bg-[#ff5252] border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] flex items-start gap-3 mb-6">
+                            <div className="bg-black text-white w-6 h-6 flex items-center justify-center font-black shrink-0">!</div>
+                            <p className="text-sm font-bold text-black uppercase">{error}</p>
+                        </motion.div>
                     )}
 
-                    <button 
-                        type="submit" 
-                        disabled={loading}
-                        className="w-full h-16 bg-slate-900 text-white font-semibold text-lg rounded-2xl hover:bg-slate-800 active:scale-[0.98] transition-all shadow-xl shadow-slate-200 flex items-center justify-center disabled:opacity-70"
-                    >
-                        {loading ? <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : (isSignup ? "Create Account" : "Login")}
-                    </button>
+                    <div className="pt-4">
+                        <button 
+                            type="submit" 
+                            disabled={loading}
+                            className="w-full py-5 bg-black text-white font-black text-xl uppercase border-4 border-black shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] hover:bg-[#10B981] hover:text-black hover:border-black active:translate-x-1 active:translate-y-1 active:shadow-none transition-all disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
+                        >
+                            {loading ? (
+                                <>Processing...</>
+                            ) : (
+                                isSignup ? "Create Account" : "Login"
+                            )}
+                        </button>
+                    </div>
                 </form>
 
                 <div className="relative flex py-8 items-center">
-                    <div className="flex-grow border-t border-slate-100"></div>
-                    <span className="flex-shrink-0 mx-4 text-[10px] font-bold text-slate-300 uppercase tracking-widest">Or</span>
-                    <div className="flex-grow border-t border-slate-100"></div>
+                    <div className="flex-grow border-t-4 border-black"></div>
+                    <span className="flex-shrink-0 mx-4 text-xs font-black bg-white border-2 border-black px-2 py-1 uppercase tracking-widest">Or</span>
+                    <div className="flex-grow border-t-4 border-black"></div>
                 </div>
 
-                <button type="button" onClick={handleGoogleLogin} className="w-full h-14 flex items-center justify-center bg-white text-slate-900 font-bold rounded-2xl border-2 border-slate-100 active:bg-slate-50 transition-all hover:border-slate-200">
-                    <span className="mr-3"><GoogleLogo /></span> Continue with Google
+                <button 
+                    type="button" 
+                    onClick={handleGoogleLogin} 
+                    className="w-full py-4 flex items-center justify-center bg-white text-black font-bold uppercase border-4 border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 hover:bg-gray-50 transition-all"
+                >
+                    <GoogleLogo /> 
+                    Continue with Google
                 </button>
 
                 <div className="mt-8 text-center">
-                    <p className="text-sm font-medium text-slate-400">
-                        {isSignup ? "Already have an account?" : "Don't have an account?"}
-                        <button onClick={() => { setIsSignup(!isSignup); setError(''); }} className="ml-1 text-slate-900 font-bold underline decoration-2 decoration-emerald-400">
-                            {isSignup ? "Login" : "Sign Up"}
+                    <p className="text-sm font-bold text-gray-500 uppercase">
+                        {isSignup ? "Returning user?" : "No account?"}
+                        <button 
+                            onClick={() => { setIsSignup(!isSignup); setError(''); }} 
+                            className="ml-2 text-black font-black underline decoration-4 decoration-[#FFD700] hover:decoration-[#10B981] hover:bg-black hover:text-white px-1 transition-all"
+                        >
+                            {isSignup ? "Login Here" : "Join Now"}
                         </button>
                     </p>
                 </div>

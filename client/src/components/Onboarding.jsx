@@ -23,10 +23,6 @@ const ColoredIcon = ({ src, colorClass, sizeClass = "w-5 h-5" }) => (
   <div className={`${sizeClass} ${colorClass}`} style={{ WebkitMaskImage: `url("${src}")`, WebkitMaskSize: 'contain', WebkitMaskRepeat: 'no-repeat', WebkitMaskPosition: 'center', maskImage: `url("${src}")`, maskSize: 'contain', maskRepeat: 'no-repeat', maskPosition: 'center', backgroundColor: 'currentColor' }} />
 );
 
-const ArrowIcon = () => (
-  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="3"><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
-);
-
 // --- DATA SETS ---
 const ETHNICITY_OPTIONS = [
     "American Indian or Alaska Native", "Asian", "Black or African American", 
@@ -64,22 +60,65 @@ const AGES = Array.from({ length: 83 }, (_, i) => i + 18);
 // --- SCROLL PICKER ---
 const ScrollPicker = ({ items, selected, onSelect, suffix = "" }) => {
   const scrollRef = useRef(null);
+  
+  // Logic to scroll to selected item on mount
   useEffect(() => {
     if (scrollRef.current) {
         const idx = items.indexOf(selected);
-        if (idx !== -1) scrollRef.current.scrollTop = idx * 40;
+        // Approximation: 48px is the item height (h-12)
+        if (idx !== -1) scrollRef.current.scrollTop = idx * 48;
     }
-  }, []); 
+  }, [selected, items]); 
+
   return (
-    <div className="h-48 overflow-y-auto snap-y snap-mandatory no-scrollbar py-20" ref={scrollRef}>
+    <div className="h-64 overflow-y-auto snap-y snap-mandatory scroll-smooth py-24 border-4 border-black bg-white shadow-[inset_0_0_20px_rgba(0,0,0,0.1)]" ref={scrollRef}>
       {items.map((item) => (
-        <div key={item} onClick={() => onSelect(item)} className={`h-10 flex items-center justify-center snap-center text-xl font-bold transition-all cursor-pointer ${selected === item ? 'text-emerald-600 scale-110' : 'text-slate-300'}`}>
+        <div 
+            key={item} 
+            onClick={() => onSelect(item)} 
+            className={`h-12 flex items-center justify-center snap-center text-2xl font-black uppercase transition-all cursor-pointer ${selected === item ? 'text-black bg-[#FFD700]' : 'text-gray-300 hover:text-gray-500'}`}
+        >
           {item}{suffix}
         </div>
       ))}
     </div>
   );
 };
+
+const InputField = ({ label, value, onChange, placeholder, type = "text" }) => (
+    <div className="mb-6">
+        <label className="block text-xs font-black uppercase tracking-widest mb-2 border-2 border-black bg-white w-fit px-2 py-0.5">
+            {label}
+        </label>
+        <input 
+            type={type} 
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            className="w-full border-4 border-black p-4 text-xl font-bold text-black placeholder:text-gray-300 outline-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] focus:translate-x-[2px] focus:translate-y-[2px] focus:shadow-none transition-all bg-white" 
+        />
+    </div>
+);
+
+const SelectionButton = ({ label, icon, onClick, active, subLabel }) => (
+    <button 
+        onClick={onClick} 
+        className={`w-full text-left p-4 border-4 border-black flex items-center justify-between shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all ${active ? 'bg-black text-white' : 'bg-white text-black'}`}
+    >
+        <div className="flex items-center gap-4">
+            {icon && (
+                <div className={`w-8 h-8 flex items-center justify-center border-2 border-current ${active ? 'bg-white text-black' : 'bg-gray-100 text-black'}`}>
+                    <ColoredIcon src={icon} colorClass="bg-current" sizeClass="w-5 h-5" />
+                </div>
+            )}
+            <div>
+                <span className="block font-black uppercase tracking-tight text-sm">{label}</span>
+                {subLabel && <span className="block text-[10px] font-bold uppercase opacity-60">{subLabel}</span>}
+            </div>
+        </div>
+        {active && <div className="text-xl font-black">✓</div>}
+    </button>
+);
 
 const Onboarding = ({ onComplete }) => {
   const [step, setStep] = useState(1);
@@ -103,9 +142,7 @@ const Onboarding = ({ onComplete }) => {
 
   const computeRestrictions = () => {
     const list = new Set();
-    // Add explicit allergens selected by user
     allergens.forEach(a => list.add(a));
-    // Add implied restrictions from conditions/lifestyle
     conditions.forEach(c => c.autoShield.forEach(i => list.add(i)));
     lifestyles.forEach(l => l.autoShield.forEach(i => list.add(i)));
     return Array.from(list);
@@ -121,26 +158,18 @@ const Onboarding = ({ onComplete }) => {
     }
 
     try {
-      // Calculate total height in inches for Settings page compatibility
       const totalInches = (formData.heightFt * 12) + formData.heightIn;
-
-      // Construct Profile Data (Flat structure for Settings.jsx compatibility)
       const profileData = {
         firstName: formData.firstName || "Member",
         lastName: formData.lastName || "",
         age: Number(formData.age),
         gender: formData.gender || "Not Specified",
         race: formData.race || "Not Specified",
-        
-        // Critical: Settings.jsx expects a Number for height/weight
         height: totalInches, 
         weight: Number(formData.weight),
-        
-        // Critical: Settings.jsx expects Arrays of Strings (Labels), not IDs or Objects
         conditions: conditions.map(c => c.label), 
         lifestyles: lifestyles.map(l => l.label),
-        restrictions: computeRestrictions(), // Saves full list of active filters
-        
+        restrictions: computeRestrictions(), 
         onboardingComplete: true,
         updatedAt: serverTimestamp() 
       };
@@ -150,113 +179,97 @@ const Onboarding = ({ onComplete }) => {
       
     } catch (err) { 
         console.error("Onboarding Save Error:", err);
-        alert("Unable to save profile. Please check your internet connection.");
+        alert("Unable to save profile.");
     } finally { 
         setLoading(false); 
     }
   };
 
   const steps = [
-      { id: 1, label: "Demographics" },
-      { id: 2, label: "Health Profile" }
+      { id: 1, label: "Identity" },
+      { id: 2, label: "Health" }
   ];
 
   return (
-    <div className="min-h-screen bg-white font-['Switzer'] text-slate-900 pb-40">
+    <div className="min-h-screen bg-white font-sans text-black pb-32">
       
       {/* HEADER */}
-      <div className="pt-10 pb-4 px-6 bg-white sticky top-0 z-40 border-b border-slate-50">
-         
-         {/* Top Row: Title + Quit Button */}
+      <div className="pt-10 pb-6 px-6 bg-white sticky top-0 z-40 border-b-4 border-black">
          <div className="flex justify-between items-start mb-6">
-            <h1 className="text-3xl font-black tracking-tight text-slate-900 leading-tight">
-                Setup <br/>
-                <span className="text-emerald-600">New Profile</span>
+            <h1 className="text-4xl font-black uppercase tracking-tighter leading-none">
+                Profile <br/>
+                <span className="text-white bg-black px-1">Setup</span>
             </h1>
 
-            {/* Quit Button (Sign Out) */}
             <button 
                 onClick={() => {
-                    if(window.confirm("Are you sure you want to sign out? Your progress will be lost.")) {
-                        const auth = getAuth();
-                        signOut(auth);
+                    if(window.confirm("Quit Setup? Progress will be lost.")) {
+                        signOut(getAuth());
                     }
                 }}
-                className="group flex items-center justify-center w-10 h-10 rounded-full bg-slate-50 hover:bg-rose-50 transition-colors"
-                aria-label="Sign Out"
+                className="w-10 h-10 border-4 border-black bg-[#FF5252] flex items-center justify-center shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all"
             >
-                <svg className="w-5 h-5 text-slate-400 group-hover:text-rose-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
+                <span className="text-white font-black text-xl">✕</span>
             </button>
          </div>
             
          {/* Step Progress */}
-         <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-400">
+         <div className="space-y-2">
+            <div className="flex justify-between text-xs font-black uppercase tracking-widest">
+                <span>Phase {step}</span>
                 <span>{steps[step - 1].label}</span>
-                <span>Step {step} of 2</span>
             </div>
-            <div className="flex gap-2 h-1.5 w-full">
+            <div className="flex gap-2 h-4">
                 {steps.map((s) => (
-                    <div key={s.id} className={`h-full flex-1 rounded-full transition-all duration-300 ${step >= s.id ? 'bg-slate-900' : 'bg-slate-100'}`} />
+                    <div key={s.id} className={`flex-1 border-2 border-black transition-all ${step >= s.id ? 'bg-[#FFD700]' : 'bg-gray-200'}`} />
                 ))}
             </div>
          </div>
       </div>
 
       {/* CONTENT FEED */}
-      <div className="px-6 py-6">
+      <div className="px-6 py-8">
          <AnimatePresence mode='wait'>
             
             {/* STEP 1: DEMOGRAPHICS */}
             {step === 1 && (
-                <motion.div key="1" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
+                <motion.div key="1" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-8">
                     
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-900 mt-4 mb-4 pl-1">Identity</h3>
-                        <div className="space-y-3">
-                            <input type="text" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} placeholder="First Name" className="w-full bg-slate-50 px-4 py-4 rounded-2xl font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:bg-slate-100 transition-colors" />
-                            <input type="text" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} placeholder="Last Name" className="w-full bg-slate-50 px-4 py-4 rounded-2xl font-medium text-slate-900 outline-none placeholder:text-slate-400 focus:bg-slate-100 transition-colors" />
-                        </div>
+                    <div className="space-y-0">
+                        <InputField label="First Name" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} placeholder="JANE" />
+                        <InputField label="Last Name" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} placeholder="DOE" />
                     </div>
 
-                    <div>
-                        <h3 className="text-sm font-bold text-slate-900 mb-4 pl-1">Biometrics</h3>
-                        <div className="space-y-4">
-                            <div className="space-y-1">
-                                <button onClick={() => setActiveModal('gender')} className="w-full bg-slate-50 px-4 py-4 rounded-2xl flex justify-between items-center text-left active:bg-slate-100 transition-colors">
-                                    <span className={`font-medium text-sm ${formData.gender ? 'text-slate-900' : 'text-slate-400'}`}>
-                                        {formData.gender || "Select Gender"}
-                                    </span>
-                                    <ColoredIcon src={genderIcon} colorClass="bg-slate-300" sizeClass="w-4 h-4" />
-                                </button>
-                                <p className="text-[10px] text-slate-400 font-medium px-2 leading-tight">
-                                    *Use gender assigned at birth for accurate metabolic calibration.
-                                </p>
-                            </div>
+                    <div className="space-y-4">
+                        <h3 className="text-xl font-black uppercase border-b-4 border-black inline-block">Biometrics</h3>
+                        
+                        <button onClick={() => setActiveModal('gender')} className="w-full flex justify-between items-center p-4 border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all group">
+                             <div className="flex flex-col text-left">
+                                <span className="text-[10px] font-black uppercase bg-[#FFD700] border-2 border-black px-1 w-fit mb-1">Gender</span>
+                                <span className={`text-xl font-black uppercase ${formData.gender ? 'text-black' : 'text-gray-300'}`}>{formData.gender || "Select"}</span>
+                             </div>
+                             <ColoredIcon src={arrowRightIcon} colorClass="bg-black" />
+                        </button>
 
-                            <button onClick={() => setActiveModal('race')} className="w-full bg-slate-50 px-4 py-4 rounded-2xl flex justify-between items-center text-left active:bg-slate-100 transition-colors">
-                                <span className={`font-medium text-sm ${formData.race ? 'text-slate-900' : 'text-slate-400'}`}>
-                                    {formData.race || "Select Ethnicity"}
-                                </span>
-                                <ColoredIcon src={ethnicIcon} colorClass="bg-slate-300" sizeClass="w-4 h-4" />
-                            </button>
+                        <button onClick={() => setActiveModal('race')} className="w-full flex justify-between items-center p-4 border-4 border-black bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all">
+                             <div className="flex flex-col text-left">
+                                <span className="text-[10px] font-black uppercase bg-[#FFD700] border-2 border-black px-1 w-fit mb-1">Ethnicity</span>
+                                <span className={`text-xl font-black uppercase ${formData.race ? 'text-black' : 'text-gray-300'}`}>{formData.race || "Select"}</span>
+                             </div>
+                             <ColoredIcon src={arrowRightIcon} colorClass="bg-black" />
+                        </button>
 
-                            <div className="grid grid-cols-3 gap-3">
-                                <button onClick={() => setActiveModal('age')} className="bg-slate-50 rounded-2xl p-4 text-center active:bg-slate-100 transition-colors">
-                                    <span className="block text-[9px] font-bold text-slate-400 capitalize tracking-tight mb-1">Age</span>
-                                    <span className="text-xl font-black text-slate-900">{formData.age}</span>
+                        <div className="grid grid-cols-3 gap-3">
+                            {[
+                                { label: 'Age', val: formData.age, modal: 'age' },
+                                { label: 'Height', val: `${formData.heightFt}'${formData.heightIn}"`, modal: 'height' },
+                                { label: 'Weight', val: `${formData.weight}lbs`, modal: 'weight' }
+                            ].map(item => (
+                                <button key={item.label} onClick={() => setActiveModal(item.modal)} className="border-4 border-black p-2 bg-white shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all flex flex-col items-center justify-center h-24">
+                                    <span className="text-[9px] font-black uppercase mb-1">{item.label}</span>
+                                    <span className="text-xl font-black">{item.val}</span>
                                 </button>
-                                <button onClick={() => setActiveModal('height')} className="bg-slate-50 rounded-2xl p-4 text-center active:bg-slate-100 transition-colors">
-                                    <span className="block text-[9px] font-bold text-slate-400 capitalize tracking-tight mb-1">Height</span>
-                                    <span className="text-xl font-black text-slate-900">{formData.heightFt}'{formData.heightIn}"</span>
-                                </button>
-                                <button onClick={() => setActiveModal('weight')} className="bg-slate-50 rounded-2xl p-4 text-center active:bg-slate-100 transition-colors">
-                                    <span className="block text-[9px] font-bold text-slate-400 capitalize tracking-tight mb-1">Weight</span>
-                                    <span className="text-xl font-black text-slate-900">{formData.weight}</span>
-                                </button>
-                            </div>
+                            ))}
                         </div>
                     </div>
                 </motion.div>
@@ -264,29 +277,25 @@ const Onboarding = ({ onComplete }) => {
 
             {/* STEP 2: HEALTH PROFILE */}
             {step === 2 && (
-                <motion.div key="2" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8">
+                <motion.div key="2" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-10">
                     
                     {/* Medical */}
                     <div>
-                        <h3 className="text-sm font-bold text-slate-900 mb-4 mt-4 pl-1">Medical Conditions</h3>
-                        <p className="text-xs text-slate-400 mb-4 pl-1 font-medium leading-relaxed">
-                            Select diagnosed conditions to enable strict ingredient filtering for your safety.
-                        </p>
-                        <div className="space-y-2">
+                        <div className="mb-4 bg-black text-white p-4 border-4 border-black shadow-[4px_4px_0px_0px_rgba(100,100,100,1)]">
+                             <h3 className="text-xl font-black uppercase">Medical Conditions</h3>
+                             <p className="text-xs font-bold font-mono text-gray-400 mt-1 uppercase">Enables strict filtering.</p>
+                        </div>
+                        <div className="space-y-3">
                             {MEDICAL_CONDITIONS.map(c => {
                                 const active = conditions.find(i => i.id === c.id);
                                 return (
-                                    <button 
+                                    <SelectionButton 
                                         key={c.id} 
-                                        onClick={() => setConditions(handleArrayToggle(conditions, c))} 
-                                        className={`w-full flex items-center justify-between p-4 rounded-2xl transition-all border border-transparent ${active ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}
-                                    >
-                                        <div className="flex items-center gap-3">
-                                            <ColoredIcon src={c.icon} colorClass={active ? 'bg-white' : 'bg-slate-400'} sizeClass="w-5 h-5" />
-                                            <span className="font-bold text-sm">{c.label}</span>
-                                        </div>
-                                        {active && <div className="w-2 h-2 bg-white rounded-full"></div>}
-                                    </button>
+                                        label={c.label} 
+                                        icon={c.icon} 
+                                        active={active} 
+                                        onClick={() => setConditions(handleArrayToggle(conditions, c))}
+                                    />
                                 );
                             })}
                         </div>
@@ -294,10 +303,10 @@ const Onboarding = ({ onComplete }) => {
 
                     {/* Allergens */}
                     <div>
-                        <h3 className="text-sm font-bold text-slate-900 mb-4 pl-1">Allergens</h3>
+                        <h3 className="text-xl font-black uppercase border-b-4 border-black inline-block mb-4">Allergens</h3>
                         <div className="flex flex-wrap gap-2">
                             {COMMON_ALLERGENS.map(a => (
-                                <button key={a} onClick={() => setAllergens(handleToggle(allergens, a))} className={`px-4 py-3 rounded-2xl text-xs font-bold transition-all ${allergens.has(a) ? 'bg-emerald-500 text-white shadow-md shadow-emerald-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                                <button key={a} onClick={() => setAllergens(handleToggle(allergens, a))} className={`px-4 py-3 border-4 border-black text-xs font-black uppercase transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 ${allergens.has(a) ? 'bg-[#FF5252] text-white' : 'bg-white text-black hover:bg-gray-100'}`}>
                                     {a}
                                 </button>
                             ))}
@@ -306,12 +315,12 @@ const Onboarding = ({ onComplete }) => {
 
                     {/* Lifestyle */}
                     <div>
-                        <h3 className="text-sm font-bold text-slate-900 mb-4 pl-1">Lifestyle Preferences</h3>
+                        <h3 className="text-xl font-black uppercase border-b-4 border-black inline-block mb-4">Lifestyle</h3>
                         <div className="flex flex-wrap gap-2">
                             {LIFESTYLE_DIETS.map(l => {
                                 const active = lifestyles.find(i => i.id === l.id);
                                 return (
-                                    <button key={l.id} onClick={() => setLifestyles(handleArrayToggle(lifestyles, l))} className={`px-4 py-3 rounded-2xl text-xs font-bold transition-all ${active ? 'bg-emerald-500 text-white shadow-md shadow-emerald-100' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'}`}>
+                                    <button key={l.id} onClick={() => setLifestyles(handleArrayToggle(lifestyles, l))} className={`px-4 py-3 border-4 border-black text-xs font-black uppercase transition-all shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 ${active ? 'bg-[#10B981] text-black' : 'bg-white text-black hover:bg-gray-100'}`}>
                                         {l.label}
                                     </button>
                                 );
@@ -325,66 +334,68 @@ const Onboarding = ({ onComplete }) => {
       </div>
 
       {/* --- FOOTER NAV --- */}
-      <div className="fixed bottom-0 left-0 right-0 p-5 bg-white border-t border-slate-100 flex flex-col gap-3 z-50 pb-8">
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white border-t-4 border-black z-50 flex flex-col gap-3">
          <button 
             disabled={loading || (step === 1 && (!formData.firstName || !formData.race || !formData.gender))}
             onClick={() => step < 2 ? setStep(step + 1) : handleFinish()}
-            className={`w-full h-14 rounded-2xl font-bold text-sm capitalize tracking-tight shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:active:scale-100 ${step === 2 ? 'bg-emerald-600 text-white' : 'bg-slate-900 text-white'}`}
+            className={`w-full py-5 border-4 border-black font-black text-xl uppercase shadow-[6px_6px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${step === 2 ? 'bg-[#10B981] text-black' : 'bg-black text-white hover:bg-gray-800'}`}
          >
-            {loading ? "Configuring..." : (step === 2 ? "Complete Setup" : "Next Step")}
-            {!loading && <ArrowIcon />}
+            {loading ? "INITIALIZING..." : (step === 2 ? "FINISH SETUP" : "NEXT PHASE")}
          </button>
          
          <button 
             onClick={step === 1 ? () => {} : () => setStep(step - 1)} 
             disabled={step === 1}
-            className={`w-full h-10 rounded-2xl flex items-center justify-center text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-colors ${step === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}
+            className={`w-full py-2 font-bold uppercase text-xs tracking-widest hover:bg-gray-100 transition-colors ${step === 1 ? 'opacity-0 pointer-events-none' : 'opacity-100 text-black'}`}
          >
-            Previous
+            ← Go Back
          </button>
       </div>
 
       {/* --- MODALS --- */}
       <AnimatePresence>
         {activeModal && (
-            <>
-                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 bg-slate-900/20 z-[60]" onClick={() => setActiveModal(null)} />
-                <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="fixed bottom-0 left-0 right-0 bg-white rounded-t-[2rem] z-[70] p-6 shadow-2xl pb-10">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-black capitalize text-slate-900">{activeModal === 'race' ? 'Ethnicity' : activeModal}</h3>
-                        <button onClick={() => setActiveModal(null)} className="bg-slate-100 px-4 py-2 rounded-xl text-xs font-bold text-slate-700">Done</button>
+            <div className="fixed inset-0 z-[100] flex flex-col justify-end">
+                <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-black/80 backdrop-blur-sm" onClick={() => setActiveModal(null)} />
+                <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="relative bg-white border-t-4 border-black p-6 pb-12 w-full max-h-[80vh] flex flex-col z-10">
+                    <div className="w-16 h-2 bg-black mx-auto mb-6" />
+                    <div className="flex justify-between items-center mb-6 border-b-4 border-black pb-2">
+                        <h3 className="text-2xl font-black uppercase text-black">{activeModal === 'race' ? 'Ethnicity' : activeModal}</h3>
+                        <button onClick={() => setActiveModal(null)} className="bg-black text-white px-4 py-2 text-xs font-bold uppercase hover:bg-gray-800">Done</button>
                     </div>
                     
-                    {activeModal === 'race' && (
-                        <div className="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
-                            {ETHNICITY_OPTIONS.map(r => (
-                                <button key={r} onClick={() => { setFormData({...formData, race: r}); setActiveModal(null); }} className={`w-full text-left p-4 rounded-xl font-bold text-xs uppercase tracking-wide transition-all ${formData.race === r ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500'}`}>
-                                    {r}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                    <div className="overflow-y-auto flex-1 p-1">
+                        {activeModal === 'race' && (
+                            <div className="space-y-3">
+                                {ETHNICITY_OPTIONS.map(r => (
+                                    <button key={r} onClick={() => { setFormData({...formData, race: r}); setActiveModal(null); }} className={`w-full text-left p-4 border-4 border-black font-bold uppercase text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all ${formData.race === r ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}>
+                                        {r}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
-                    {activeModal === 'gender' && (
-                        <div className="space-y-2">
-                            {GENDER_OPTIONS.map(g => (
-                                <button key={g} onClick={() => { setFormData({...formData, gender: g}); setActiveModal(null); }} className={`w-full text-left p-4 rounded-xl font-bold text-xs uppercase tracking-wide transition-all ${formData.gender === g ? 'bg-slate-900 text-white' : 'bg-slate-50 text-slate-500'}`}>
-                                    {g}
-                                </button>
-                            ))}
-                        </div>
-                    )}
+                        {activeModal === 'gender' && (
+                            <div className="space-y-3">
+                                {GENDER_OPTIONS.map(g => (
+                                    <button key={g} onClick={() => { setFormData({...formData, gender: g}); setActiveModal(null); }} className={`w-full text-left p-4 border-4 border-black font-bold uppercase text-sm shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:shadow-none active:translate-x-1 active:translate-y-1 transition-all ${formData.gender === g ? 'bg-black text-white' : 'bg-white text-black hover:bg-gray-50'}`}>
+                                        {g}
+                                    </button>
+                                ))}
+                            </div>
+                        )}
 
-                    {activeModal === 'age' && <ScrollPicker items={AGES} selected={formData.age} onSelect={(v) => setFormData({...formData, age: v})} suffix=" years" />}
-                    {activeModal === 'weight' && <ScrollPicker items={WEIGHTS} selected={formData.weight} onSelect={(v) => setFormData({...formData, weight: v})} suffix=" lbs" />}
-                    {activeModal === 'height' && (
-                        <div className="flex gap-4">
-                             <div className="flex-1"><ScrollPicker items={FEET} selected={formData.heightFt} onSelect={(v) => setFormData({...formData, heightFt: v})} suffix=" ft" /></div>
-                             <div className="flex-1"><ScrollPicker items={INCHES} selected={formData.heightIn} onSelect={(v) => setFormData({...formData, heightIn: v})} suffix=" in" /></div>
-                        </div>
-                    )}
+                        {activeModal === 'age' && <ScrollPicker items={AGES} selected={formData.age} onSelect={(v) => setFormData({...formData, age: v})} suffix=" YRS" />}
+                        {activeModal === 'weight' && <ScrollPicker items={WEIGHTS} selected={formData.weight} onSelect={(v) => setFormData({...formData, weight: v})} suffix=" LBS" />}
+                        {activeModal === 'height' && (
+                            <div className="flex gap-4">
+                                <div className="flex-1 text-center"><h4 className="font-black uppercase mb-2">Feet</h4><ScrollPicker items={FEET} selected={formData.heightFt} onSelect={(v) => setFormData({...formData, heightFt: v})} suffix="'" /></div>
+                                <div className="flex-1 text-center"><h4 className="font-black uppercase mb-2">Inches</h4><ScrollPicker items={INCHES} selected={formData.heightIn} onSelect={(v) => setFormData({...formData, heightIn: v})} suffix='"' /></div>
+                            </div>
+                        )}
+                    </div>
                 </motion.div>
-            </>
+            </div>
         )}
       </AnimatePresence>
     </div>

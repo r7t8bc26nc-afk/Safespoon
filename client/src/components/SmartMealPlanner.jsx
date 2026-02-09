@@ -207,19 +207,8 @@ export const SmartMealPlanner = ({ userProfile }) => {
     };
 
     return (
-        <main className="min-h-screen bg-white font-sans text-black pb-24">
+        <main className="min-h-screen bg-white font-sans text-black pb-12">
             <Helmet><title>Smart Planner</title></Helmet>
-
-            {/* HEADER */}
-            <div className="pt-6 px-6 pb-4 bg-[#E0E7FF] border-b-4 border-black sticky top-0 z-30 flex items-center justify-between">
-                <button onClick={() => step > 1 ? setStep(step - 1) : navigate(-1)} className="w-10 h-10 bg-white border-2 border-black flex items-center justify-center font-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] active:translate-x-1 active:translate-y-1 active:shadow-none">
-                    ←
-                </button>
-                <h2 className="text-lg font-black uppercase tracking-tight">
-                    {!isUnlocked ? 'LOCKED' : step === 1 ? 'CONFIG' : step === 2 ? 'MENU' : 'OPTIMIZER'}
-                </h2>
-                <div className="w-10"></div>
-            </div>
 
             {!isUnlocked ? (
                 <PremiumGate onUnlockOneTime={handleOneTimePurchase} onSubscribe={() => navigate('/subscription')} />
